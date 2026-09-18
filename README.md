@@ -89,7 +89,7 @@ https://api.plec.ai/hackathon/sandbox      Authorization: Bearer hk_...
 ```
 
 Search listings, fetch one, check a date, get an exact quote, book, list,
-cancel, reschedule. 38 listings across Philadelphia, New York and Washington;
+cancel, reschedule. 92 listings across Philadelphia, New York and Washington, deliberately uneven (closed weekdays, hour caps, lead times, peak rates, per-guest packages, three cancellation policies);
 booking state is per team. `agent/plec.js` wraps all of it. Everything,
 including the pricing formula and the error codes:
 [docs/sandbox.md](docs/sandbox.md).
