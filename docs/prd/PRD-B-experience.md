@@ -60,7 +60,7 @@ Of these, only item 1 is scored by the hidden suite. Items 2–6 are for the dem
 | Owner | Files |
 |---|---|
 | **A** | `backend/agent/agent.js`, `backend/agent/prompt.js` (new), `backend/agent/state.js` (new), `backend/agent/gate.js` (new), `backend/tests/unit/core-*.test.js`, `backend/tests/local/**` |
-| **B** | `backend/agent/parts.js`, `backend/agent/extras.js`, `backend/agent/vision.js`, `backend/agent/geo.js`, `backend/agent/email.js`, `backend/agent/market.js`, `backend/agent/recommend.js`, `backend/agent/server.js`, `frontend/**` (the React chat UI), `backend/scripts/**`, `backend/data/geo.json`, `.env.example`, `package.json` (dependencies only), `backend/tests/unit/parts-*.test.js`, `backend/tests/unit/extras-*.test.js` |
+| **B** | `backend/agent/parts.js`, `backend/agent/extras.js`, `backend/agent/vision.js`, `backend/agent/geo.js`, `backend/agent/email.js`, `backend/agent/market.js`, `backend/agent/recommend.js`, `backend/agent/calendar.js`, `backend/agent/server.js`, `frontend/**` (the React chat UI), `backend/scripts/**`, `backend/data/geo.json`, `.env.example`, `package.json` (dependencies only), `backend/tests/unit/parts-*.test.js`, `backend/tests/unit/extras-*.test.js` |
 | **Frozen** (change only with both people's agreement) | `backend/agent/shared.js`, `backend/agent/plec.js`, `backend/agent/llm.js`, `backend/agent/session.js`, `backend/tests/run.js`, `docs/*.md`, `backend/data/listings.json`, `CLAUDE.md` |
 
 If you need a change in a file you don't own, **stop and tell your human**. Don't make the edit.
@@ -332,6 +332,25 @@ Tools, added to `extraTools`:
 
 - In `.env.example`, add commented entries for `ANTHROPIC_API_KEY`, `ANTHROPIC_VISION_MODEL=claude-opus-5`, `RESEND_API_KEY` and `EMAIL_FROM`, with one line each on what they turn on.
 - In `package.json`, add `@anthropic-ai/sdk` to `dependencies`. Don't touch the scripts, which were set in Step 0.
+
+### B10. Add to calendar — `backend/agent/calendar.js`, `parts.js`, `server.js`, `Concierge.jsx`
+
+Added after the merge. Like the payment link, it's deterministic: no tool and no model round, and the model can't invent the date.
+
+- **`calendar.js`** (pure functions):
+  - `googleCalendarUrl(booking, listing)` returns `https://calendar.google.com/calendar/render?action=TEMPLATE&text&dates=YYYYMMDDTHHMMSS/…&ctz=America/New_York&details&location`.
+  - `toIcs(booking, listing)` returns an RFC 5545 `VCALENDAR` with one `VEVENT`. It has a `VTIMEZONE` for America/New_York, `UID = <ref>@plec`, CRLF line endings, escaped text and lines folded at 75 octets.
+  - All three catalogue cities are Eastern time, so the time zone is fixed.
+  - The event title is `<listingName> (<ref>)`. The location is `listing.address` when known. The description gives the headcount and the ref.
+  - For `pending_payment`, the ICS has `STATUS:TENTATIVE` and the title says "(tentative until paid)". For `requested`, it says "(tentative until the host approves)". For `confirmed`, the ICS has `STATUS:CONFIRMED`.
+- **`toParts`**: for the last `book`, `reschedule_booking` or `get_booking` result per ref, when the status is `pending_payment`, `requested` or `confirmed`, add two link parts after the payment links:
+  - `{ label: 'Add to Google Calendar', url: googleCalendarUrl }`
+  - `{ label: 'Download calendar file (.ics)', url: '/api/bookings/<ref>/calendar.ics' }`
+  - Link labels are part of the flattened reply that the checks read, so they must never contain status words ("confirmed", "paid", "booked") or amounts.
+- **`server.js`**: `GET /api/bookings/:ref/calendar.ics` fetches the booking and its listing, then answers `text/calendar` as an attachment. A cancelled booking gets `409 cancelled`.
+- **`Concierge.jsx`**: `safe()` also accepts same-origin `/api/` paths, so the `.ics` link renders. The evaluator's page doesn't resolve the relative link, which is harmless.
+
+**Accepted when:** there are unit tests for the Google URL, the ICS format (tentative and confirmed, escaping, CRLF) and `toParts` (links for each of the three statuses, none for cancelled, the latest result wins after a reschedule, and the payment link stays in the text). `npm test` still passes.
 
 ---
 

@@ -43,7 +43,7 @@ Staff judge the agent at a hackathon (deadline 3:30pm, same day). They run 4 pub
 | Owner | Files |
 |---|---|
 | **A** | `backend/agent/agent.js`, `backend/agent/prompt.js` (new), `backend/agent/state.js` (new), `backend/agent/gate.js` (new), `backend/tests/unit/core-*.test.js`, `backend/tests/local/**` |
-| **B** | `backend/agent/parts.js`, `backend/agent/extras.js`, `backend/agent/vision.js`, `backend/agent/geo.js`, `backend/agent/email.js`, `backend/agent/market.js`, `backend/agent/recommend.js`, `backend/agent/server.js`, `frontend/**` (the React chat UI), `backend/scripts/**`, `backend/data/geo.json`, `.env.example`, `package.json` (dependencies only), `backend/tests/unit/parts-*.test.js`, `backend/tests/unit/extras-*.test.js` |
+| **B** | `backend/agent/parts.js`, `backend/agent/extras.js`, `backend/agent/vision.js`, `backend/agent/geo.js`, `backend/agent/email.js`, `backend/agent/market.js`, `backend/agent/recommend.js`, `backend/agent/calendar.js`, `backend/agent/server.js`, `frontend/**` (the React chat UI), `backend/scripts/**`, `backend/data/geo.json`, `.env.example`, `package.json` (dependencies only), `backend/tests/unit/parts-*.test.js`, `backend/tests/unit/extras-*.test.js` |
 | **Frozen** (change only with both people's agreement) | `backend/agent/shared.js`, `backend/agent/plec.js`, `backend/agent/llm.js`, `backend/agent/session.js`, `backend/tests/run.js`, `docs/*.md`, `backend/data/listings.json`, `CLAUDE.md` |
 
 If you need a change in a file you don't own, **stop and tell your human**. Don't make the edit.
