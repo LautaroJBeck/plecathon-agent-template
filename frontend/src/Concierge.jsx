@@ -277,7 +277,7 @@ export function ConciergeDock({ concierge: c, onOpen }) {
           <span>AI booking assistant, replies in seconds</span>
         </div>
         <button className="icon-btn" onClick={c.reset} data-tip="Start over" aria-label="Start a new conversation"><Icon name="refresh" /></button>
-        <button className="icon-btn" onClick={() => c.setOpen(false)} aria-label="Minimize chat"><Icon name="minus" /></button>
+        <button className="icon-btn" onClick={() => c.setOpen(false)} data-tip="Minimize" aria-label="Minimize chat"><Icon name="minus" /></button>
       </header>
 
       <div className="dock-log" ref={log} aria-live="polite">
