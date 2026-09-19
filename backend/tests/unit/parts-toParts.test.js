@@ -54,6 +54,11 @@ test('card title is exactly the listing name; subtitle is numbered facts', () =>
   assert.ok(!('url' in cardFor(FOUNDRY, 1)));
 });
 
+test('card carries the listing id so the chat UI can open the full listing', () => {
+  assert.equal(cardFor(FOUNDRY, 1).listingId, 'foundry-fishtown');
+  assert.ok(!('listingId' in cardFor({ name: 'X' }, 1)));
+});
+
 test('empty text falls back to a sentence', () => {
   assert.equal(toParts('CARDS: foundry-fishtown', sessionWith([FOUNDRY]), [])[0].text, "Here's what I found.");
   assert.equal(toParts('', sessionWith([]), [])[0].text, 'Sorry, could you say that again?');

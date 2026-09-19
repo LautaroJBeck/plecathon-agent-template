@@ -110,20 +110,24 @@ export function useConcierge() {
 const safe = (url) => (/^(https?:\/\/|mailto:|\/api\/)/i.test(url ?? '') ? url : undefined);
 const external = (url) => ({ href: safe(url), target: '_blank', rel: 'noreferrer' });
 
-function Part({ part }) {
+/** onOpen(listingId) opens the full listing page; cards without a listingId fall back to their map link. */
+function Part({ part, onOpen }) {
   switch (part?.kind) {
     case 'text':
       return <div className="bubble">{part.text}</div>;
     case 'card': {
-      const Tag = safe(part.url) ? 'a' : 'div';
+      const opens = onOpen && typeof part.listingId === 'string';
+      const Tag = opens ? 'button' : safe(part.url) ? 'a' : 'div';
+      const props = opens ? { type: 'button', onClick: () => onOpen(part.listingId) } : safe(part.url) ? external(part.url) : {};
       const photo = Array.isArray(part.photoUrls) ? part.photoUrls[0] : null;
       return (
-        <Tag className="chat-card" {...(safe(part.url) ? external(part.url) : {})}>
+        <Tag className="chat-card" {...props}>
           {photo && <img src={photo} alt={part.title} loading="lazy" />}
           <div className="chat-card-body">
             <strong>{part.title}</strong>
             {part.subtitle && <span>{part.subtitle}</span>}
-            {safe(part.url) && <em>View details <Icon name="out" size={13} /></em>}
+            {opens ? <em>View details <Icon name="arrow" size={13} /></em>
+              : safe(part.url) && <em>View details <Icon name="out" size={13} /></em>}
           </div>
         </Tag>
       );
@@ -157,7 +161,7 @@ function Avatar() {
   );
 }
 
-export function ConciergeDock({ concierge: c }) {
+export function ConciergeDock({ concierge: c, onOpen }) {
   const [draft, setDraft] = useState('');
   const [photo, setPhoto] = useState(null);
   const [photoError, setPhotoError] = useState('');
@@ -230,7 +234,7 @@ export function ConciergeDock({ concierge: c }) {
               {entry.part.text} {entry.retryText && <button onClick={() => c.send(entry.retryText)}>Retry</button>}
             </div>
           ) : (
-            <div key={i} className={`row ${entry.role} ${entry.failed ? 'failed' : ''}`}><Part part={entry.part} /></div>
+            <div key={i} className={`row ${entry.role} ${entry.failed ? 'failed' : ''}`}><Part part={entry.part} onOpen={onOpen} /></div>
           ),
         )}
         {c.sending && (

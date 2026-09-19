@@ -231,7 +231,7 @@ export default function App() {
       </main>
       {listingId && <ListingModal id={listingId} onClose={() => setListingId(null)} onAsk={ask} />}
       {managing && <BookingLookup onClose={() => setManaging(false)} onAsk={ask} />}
-      <ConciergeDock concierge={concierge} />
+      <ConciergeDock concierge={concierge} onOpen={setListingId} />
       <Launchers concierge={concierge} />
     </>
   );

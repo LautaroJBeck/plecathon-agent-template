@@ -94,6 +94,7 @@ export function cardFor(listing, n) {
     listing.instantBook === false && 'request to book',
   ].filter(Boolean);
   const card = { kind: 'card', title: listing.name, subtitle: `${n}. ${facts.join(' · ')}`, photoUrls: listing.photoUrls ?? [] };
+  if (listing.id) card.listingId = listing.id; // extra field: our chat UI opens the full listing with it
   if (listing.mapUrl) card.url = listing.mapUrl;
   return card;
 }

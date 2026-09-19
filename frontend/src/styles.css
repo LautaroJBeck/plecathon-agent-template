@@ -197,7 +197,7 @@ main > section, main > #browse { width: var(--page); margin-inline: auto; }
 .footer-cols button:hover, .footer-cols a:hover { color: var(--fg); }
 
 /* ---------- dialogs ---------- */
-.overlay { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 24px; background: rgba(15, 15, 15, .5); backdrop-filter: blur(3px); animation: fade .15s; }
+.overlay { position: fixed; inset: 0; z-index: 70; display: grid; place-items: center; padding: 24px; background: rgba(15, 15, 15, .5); backdrop-filter: blur(3px); animation: fade .15s; }
 .dialog { position: relative; width: min(520px, 100%); max-height: calc(100vh - 48px); overflow: auto; border-radius: 22px; background: #fff; box-shadow: var(--shadow-lg); animation: rise .2s; }
 .dialog.wide { width: min(1080px, 100%); }
 .dialog h2 { font-size: 28px; }
@@ -270,7 +270,8 @@ main > section, main > #browse { width: var(--page); margin-inline: auto; }
 .row.failed .bubble { opacity: .55; }
 .bubble.muted { color: var(--muted); font-style: italic; }
 .chat-card { display: flex; width: 85%; overflow: hidden; border-radius: 16px; background: #fff; border: 1px solid var(--border); text-decoration: none; transition: box-shadow .15s; }
-a.chat-card:hover { box-shadow: var(--shadow); }
+a.chat-card:hover, button.chat-card:hover { box-shadow: var(--shadow); }
+button.chat-card { text-align: left; padding: 0; }
 .chat-card img { width: 96px; flex: none; object-fit: cover; }
 .chat-card-body { display: grid; align-content: center; gap: 2px; padding: 10px 12px; font-size: 13.5px; }
 .chat-card-body span { color: var(--muted); }
