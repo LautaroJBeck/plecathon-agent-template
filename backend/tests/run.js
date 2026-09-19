@@ -19,7 +19,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
+const ROOT = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
 loadDotEnv(join(ROOT, '.env'));
 
 const SANDBOX_URL = (process.env.PLEC_SANDBOX_URL || 'https://api.plec.ai/hackathon/sandbox').replace(/\/+$/, '');

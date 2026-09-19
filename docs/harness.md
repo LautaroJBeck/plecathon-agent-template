@@ -1,6 +1,6 @@
 # Building the harness
 
-The starter in `agent/agent.js` is an echo. This page is the shape of the thing
+The starter in `backend/agent/agent.js` is an echo. This page is the shape of the thing
 that replaces it. Everything below is what the hidden scenarios judge, so read
 it as a checklist as much as a guide. Code sketches are Node, but the
 structure is the same in any language.
@@ -57,7 +57,7 @@ Three things to notice:
 
 ## Tools
 
-`agent/plec.js` exports `tools`, an OpenAI-style function list with one entry
+`backend/agent/plec.js` exports `tools`, an OpenAI-style function list with one entry
 per sandbox call, and `callTool(name, args)` to run one. Hand `tools` to
 `chatCompletion` and you are done. The descriptions are written for the
 model: when to use each tool, what it will not do. If you add tools of your

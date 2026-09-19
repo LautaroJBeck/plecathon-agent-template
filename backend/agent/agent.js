@@ -56,7 +56,7 @@ export async function respond({ sessionId, text, session }) {
     // TODO(tools): the echo never touches the sandbox. Your agent should ground
     // every fact (capacity, price, availability, booking status) in a tool
     // result from plec.js, never in what the model remembers.
-    parts.push({ kind: 'text', text: `You said: "${text}". I am only an echo so far. Open agent/agent.js to teach me the rest.` });
+    parts.push({ kind: 'text', text: `You said: "${text}". I am only an echo so far. Open backend/agent/agent.js to teach me the rest.` });
   }
 
   // TODO(errors): a PlecError from callTool() carries { error, message }.

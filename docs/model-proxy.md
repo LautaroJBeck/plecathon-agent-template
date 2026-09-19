@@ -34,9 +34,9 @@ belongs to the team, not to a person: both teammates use the same one.
 Your prompts are not logged. The proxy records which team called, which model,
 how many tokens the turn used and how long it took, and nothing else.
 
-## Using it from agent/llm.js
+## Using it from backend/agent/llm.js
 
-Nothing in `agent/llm.js` changes. It already speaks this protocol. Set the
+Nothing in `backend/agent/llm.js` changes. It already speaks this protocol. Set the
 three lines in `.env`:
 
 ```bash
@@ -114,7 +114,7 @@ costing someone money.
 ## No streaming
 
 A body with `"stream": true` is refused with `streaming_unsupported`. Drop the
-field. `agent/llm.js` never sends it, and the agent contract returns one reply
+field. `backend/agent/llm.js` never sends it, and the agent contract returns one reply
 per turn, so there is nothing to stream into.
 
 ## Quotas
@@ -159,7 +159,7 @@ Exceeding either cap is HTTP 429 with a `retryAfterSeconds` field:
 }
 ```
 
-`agent/llm.js` raises these as an `LlmError` carrying `status` and the raw
+`backend/agent/llm.js` raises these as an `LlmError` carrying `status` and the raw
 `body`, so you can back off instead of hammering:
 
 ```js

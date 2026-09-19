@@ -1,33 +1,32 @@
 /**
  * Zero-dependency HTTP server for the agent contract (docs/contract.md):
  *
- *   GET  /                 the chat page (chat/index.html) and its emblem
  *   POST /agent/messages   { sessionId, text }  ->  { parts: Part[] }
  *   POST /agent/reset      { sessionId }        ->  { ok: true }
  *   GET  /health           { ok: true }
+ *   /api/*                 read-only sandbox routes for the site (see handleApi)
  *
- * CORS is wide open so the chat page can be served from anywhere (a file, a
- * tunnel, another port) and still talk to this server. Every error is JSON
+ * API only: the chat page is its own process (frontend/server.js). CORS is
+ * wide open so the page can also be served from anywhere (a file, a tunnel,
+ * another port) and still talk to this server. Every error is JSON
  * with { error, message } so the runner and the chat page can print it.
  */
 
 import { createServer } from 'node:http';
-import { readFile } from 'node:fs/promises';
 import { existsSync, readFileSync } from 'node:fs';
-import { dirname, extname, join, normalize } from 'node:path';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { respond } from './agent.js';
+import { plec, PlecError } from './plec.js';
 import { getSession, resetSession } from './session.js';
 
-const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
+const ROOT = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
 loadDotEnv(join(ROOT, '.env'));
 
 const PORT = Number(process.env.AGENT_PORT) || 8787;
 /** The evaluator gives up at 45s; answer with an error before that so the failure is visible. */
 const TURN_DEADLINE_MS = 40_000;
 const MAX_BODY_BYTES = 64 * 1024;
-const CHAT_DIR = join(ROOT, 'chat');
-const MIME = { '.html': 'text/html; charset=utf-8', '.svg': 'image/svg+xml', '.css': 'text/css', '.js': 'text/javascript', '.png': 'image/png' };
 
 const server = createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -40,7 +39,7 @@ const server = createServer(async (req, res) => {
     if (req.method === 'GET' && url.pathname === '/health') return json(res, 200, { ok: true });
     if (req.method === 'POST' && url.pathname === '/agent/messages') return await handleMessage(req, res);
     if (req.method === 'POST' && url.pathname === '/agent/reset') return await handleReset(req, res);
-    if (req.method === 'GET' || req.method === 'HEAD') return await serveStatic(url.pathname, res, req.method === 'HEAD');
+    if (url.pathname.startsWith('/api/')) return await handleApi(req, res, url);
     return json(res, 404, { error: 'not_found', message: `No route ${req.method} ${url.pathname}` });
   } catch (err) {
     console.error(err);
@@ -85,16 +84,50 @@ async function handleReset(req, res) {
   return json(res, 200, { ok: true });
 }
 
-/** Serves chat/ read-only; "/" is the chat page. Path is normalised so ".." cannot escape. */
-async function serveStatic(pathname, res, headOnly = false) {
-  const relative = pathname === '/' ? 'index.html' : normalize(decodeURIComponent(pathname)).replace(/^([/\\]|\.\.)+/, '');
-  const file = join(CHAT_DIR, relative);
-  if (!file.startsWith(CHAT_DIR) || !existsSync(file)) {
-    return json(res, 404, { error: 'not_found', message: `No file ${pathname}` });
+const SEARCH_FILTERS = ['q', 'city', 'kind', 'category', 'guests', 'date', 'limit'];
+const QUOTE_FIELDS = ['listingId', 'date', 'startTime', 'endTime', 'guestCount', 'packageIds'];
+// ponytail: unbounded cache. Fine while the catalogue is fixed; it keeps the site
+// from spending the 240/min sandbox budget the agent needs.
+const catalogueCache = new Map();
+
+/**
+ * Read-only window onto the sandbox for the site: browse, check a date, price
+ * it, look up a booking. Booking, cancelling and rescheduling stay with the
+ * agent, which confirms with the guest first. The key never leaves the server.
+ *
+ *   GET  /api/listings?q&city&kind&category&guests&date&limit
+ *   GET  /api/listings/:id
+ *   GET  /api/listings/:id/availability?date=
+ *   POST /api/quotes            { listingId, date, startTime, endTime, guestCount, packageIds? }
+ *   GET  /api/bookings/:ref
+ */
+async function handleApi(req, res, url) {
+  const path = url.pathname.slice('/api'.length);
+  const id = path.match(/^\/listings\/([a-z0-9-]+)(\/availability)?$/);
+  const ref = path.match(/^\/bookings\/(BK-\d+)$/i);
+  try {
+    if (req.method === 'GET' && path === '/listings') {
+      const filters = Object.fromEntries(SEARCH_FILTERS.filter((k) => url.searchParams.get(k)).map((k) => [k, url.searchParams.get(k)]));
+      return json(res, 200, await cached(`search?${new URLSearchParams(filters)}`, () => plec.searchListings(filters)));
+    }
+    if (req.method === 'GET' && id && !id[2]) return json(res, 200, await cached(`listing/${id[1]}`, () => plec.getListing(id[1])));
+    if (req.method === 'GET' && id && id[2]) return json(res, 200, await plec.getAvailability(id[1], url.searchParams.get('date')));
+    if (req.method === 'POST' && path === '/quotes') {
+      const body = await readJson(req);
+      if (!body) return json(res, 400, { error: 'bad_json', message: 'Send a JSON body with the quote inputs.' });
+      return json(res, 200, await plec.quote(Object.fromEntries(QUOTE_FIELDS.filter((k) => k in body).map((k) => [k, body[k]]))));
+    }
+    if (req.method === 'GET' && ref) return json(res, 200, await plec.getBooking(ref[1]));
+  } catch (err) {
+    if (err instanceof PlecError) return json(res, err.status || 502, { error: err.error, message: err.message });
+    throw err;
   }
-  const bytes = await readFile(file);
-  res.writeHead(200, { 'Content-Type': MIME[extname(file)] ?? 'application/octet-stream', 'Content-Length': bytes.length, 'Cache-Control': 'no-store' });
-  res.end(headOnly ? undefined : bytes);
+  return json(res, 404, { error: 'not_found', message: `No route ${req.method} ${url.pathname}` });
+}
+
+async function cached(key, load) {
+  if (!catalogueCache.has(key)) catalogueCache.set(key, await load());
+  return catalogueCache.get(key);
 }
 
 /** Same validation the evaluator applies, so what you see locally is what staff see. */
@@ -158,6 +191,5 @@ function loadDotEnv(path) {
 
 server.listen(PORT, () => {
   console.log(`PLEC agent listening on http://localhost:${PORT}`);
-  console.log(`Chat page:   http://localhost:${PORT}/`);
   console.log(`Sandbox:     ${process.env.PLEC_SANDBOX_URL || 'https://api.plec.ai/hackathon/sandbox'}  key ${process.env.PLEC_SANDBOX_KEY ? 'set' : 'MISSING (copy it from https://plec.ai/hack/dashboard into .env)'}`);
 });

@@ -1,13 +1,13 @@
-"""The agent contract in stdlib Python. Run: python3 python/echo_server.py
+"""The agent contract in stdlib Python. Run: python3 backend/python/echo_server.py
 
 POST /agent/messages {sessionId, text} -> {parts}, POST /agent/reset -> {ok},
-GET / serves the chat page. Replace `respond` with your harness (docs/harness.md).
+GET / serves the plain chat page (frontend/public/chat.html). Replace `respond` with your harness (docs/harness.md).
 """
 import json, os
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-CHAT_DIR = Path(__file__).resolve().parent.parent / "chat"
+CHAT_DIR = Path(__file__).resolve().parent.parent.parent / "frontend" / "public"
 SESSIONS: dict[str, list] = {}  # sessionId -> turns; in memory on purpose
 
 
@@ -36,9 +36,9 @@ class Handler(BaseHTTPRequestHandler):
         self._send(204, b"")
 
     def do_GET(self) -> None:
-        name = "index.html" if self.path in ("/", "/index.html") else self.path.lstrip("/").split("?")[0]
+        name = "chat.html" if self.path in ("/", "/index.html") else self.path.lstrip("/").split("?")[0]
         file = (CHAT_DIR / name).resolve()
-        if file.is_file() and CHAT_DIR in file.parents:  # never serve outside chat/
+        if file.is_file() and CHAT_DIR in file.parents:  # never serve outside frontend/public/
             ctype = "image/svg+xml" if file.suffix == ".svg" else "text/html; charset=utf-8"
             return self._send(200, file.read_bytes(), ctype)
         self._json(404, {"error": "not_found", "message": f"No route GET {self.path}"})

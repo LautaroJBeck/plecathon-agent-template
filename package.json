@@ -3,10 +3,14 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "node agent/server.js",
-    "test": "node tests/run.js"
+    "postinstall": "npm --prefix frontend install --no-audit --no-fund",
+    "start": "node backend/agent/server.js & npm --prefix frontend run dev",
+    "backend": "node backend/agent/server.js",
+    "frontend": "npm --prefix frontend run dev",
+    "build": "npm --prefix frontend run build",
+    "test": "node backend/tests/run.js"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=20.19"
   }
 }

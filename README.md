@@ -12,23 +12,24 @@ starting point. Clone it, keep the contract, replace the brain.
 ## What you get in this repo
 
 ```
-agent/server.js        HTTP server for the contract. Serves the chat page at /. Zero dependencies.
-agent/agent.js         The brain. A working echo with TODO markers where your harness goes.
-agent/plec.js          Sandbox client, one function per endpoint, plus tool definitions for a model.
-agent/llm.js           chatCompletion() against any OpenAI-compatible endpoint.
-agent/session.js       In-memory per-session store.
-chat/index.html        PLEC's chat UI in one file. Renders every part kind.
-python/echo_server.py  The same contract in stdlib Python, for teams that prefer it.
-tests/run.js           Runs the public scenarios against your agent and prints a report.
-docs/contract.md       The agent HTTP contract, with JSON for every part kind.
-docs/sandbox.md        Every sandbox endpoint, the pricing formula, the availability rules, the errors.
-docs/harness.md        How to structure the agent: loop, tools, grounding, confirmation, memory, parts.
-docs/checks.md         What the tests check, the four public scenarios, the hidden suite's themes.
-docs/model-proxy.md    PLEC's shared model proxy: base URL, models, quotas, errors.
-data/listings.json     The catalogue, for offline reading.
+backend/agent/server.js        HTTP server for the contract (API only). Zero dependencies.
+backend/agent/agent.js         The brain. A working echo with TODO markers where your harness goes.
+backend/agent/plec.js          Sandbox client, one function per endpoint, plus tool definitions for a model.
+backend/agent/llm.js           chatCompletion() against any OpenAI-compatible endpoint.
+backend/agent/session.js       In-memory per-session store.
+frontend/server.js             Serves the chat page and forwards /agent/* to the backend.
+frontend/index.html            PLEC's chat UI in one file. Renders every part kind.
+backend/python/echo_server.py  The same contract in stdlib Python, for teams that prefer it.
+backend/tests/run.js           Runs the public scenarios against your agent and prints a report.
+docs/contract.md               The agent HTTP contract, with JSON for every part kind.
+docs/sandbox.md                Every sandbox endpoint, the pricing formula, the availability rules, the errors.
+docs/harness.md                How to structure the agent: loop, tools, grounding, confirmation, memory, parts.
+docs/checks.md                 What the tests check, the four public scenarios, the hidden suite's themes.
+docs/model-proxy.md            PLEC's shared model proxy: base URL, models, quotas, errors.
+backend/data/listings.json     The catalogue, for offline reading.
 ```
 
-Node 20 or newer. No `npm install`.
+Node 20.12 or newer. No `npm install`.
 
 ## Quickstart
 
@@ -48,7 +49,19 @@ https://plec.ai/hack/dashboard: the sandbox key (it starts with `hk_`) as
 npm start
 ```
 
-Open http://localhost:8787 and say hello. The starter greets and echoes.
+That starts both processes: the agent (backend) on http://localhost:8787 and
+the chat page (frontend) on http://localhost:3000. Open the chat page and say
+hello. The starter greets and echoes.
+
+To run them separately, in two terminals:
+
+```bash
+npm run backend     # the agent, on AGENT_PORT (8787)
+npm run frontend    # the chat page, on FRONTEND_PORT (3000), talking to AGENT_URL
+```
+
+Restart only the backend when you change the agent; the chat page keeps its
+conversation.
 
 ```bash
 npm test
@@ -59,16 +72,17 @@ transcript with every check. The echo greets with a question, so it passes the
 checks that only want a question back and fails the ones that need a fact.
 Your job is to make them all pass, and then the hidden ones.
 
-Then open `agent/agent.js` and read `docs/harness.md`.
+Then open `backend/agent/agent.js` and read `docs/harness.md`.
 
 ## Python quickstart
 
 ```bash
 cp .env.example .env
-python3 python/echo_server.py
+python3 backend/python/echo_server.py
 ```
 
-Same contract, same chat page at http://localhost:8787, same `npm test`
+Same contract, same `npm test`, and `npm run frontend` gives it the same chat
+page at http://localhost:3000
 (the runner only needs Node to run; your agent can be anything). Any other
 language works the same way: implement `POST /agent/messages` and you are in.
 
@@ -93,7 +107,7 @@ https://api.plec.ai/hackathon/sandbox      Authorization: Bearer hk_...
 
 Search listings, fetch one, check a date, get an exact quote, book, list,
 cancel, reschedule. 92 listings across Philadelphia, New York and Washington, deliberately uneven (closed weekdays, hour caps, lead times, peak rates, per-guest packages, three cancellation policies);
-booking state is per team. `agent/plec.js` wraps all of it. Everything,
+booking state is per team. `backend/agent/plec.js` wraps all of it. Everything,
 including the pricing formula and the error codes:
 [docs/sandbox.md](docs/sandbox.md).
 
@@ -106,7 +120,7 @@ https://api.plec.ai/hackathon/llm/v1      Authorization: Bearer plk_...
 PLEC lends its own Moonshot (Kimi) quota through an OpenAI-compatible proxy,
 so nobody has to buy a model key at the door. Mint your team's key on
 https://plec.ai/hack/dashboard. It is shown exactly once, so copy it then.
-Point `.env` at it and nothing in `agent/llm.js` changes:
+Point `.env` at it and nothing in `backend/agent/llm.js` changes:
 
 ```bash
 LLM_BASE_URL=https://api.plec.ai/hackathon/llm/v1
@@ -200,7 +214,7 @@ and keep editing.
 - Any language, framework or model. Keep the contract.
 - A model key comes with your team: PLEC's shared proxy, minted on the
   dashboard. Bring your own instead if you prefer. Any OpenAI-compatible chat
-  completions endpoint works with `agent/llm.js`: OpenAI, Anthropic, Groq,
+  completions endpoint works with `backend/agent/llm.js`: OpenAI, Anthropic, Groq,
   DeepSeek, Moonshot, Ollama on your laptop.
 - Teams of one or two.
 - The sandbox is shared infrastructure: 240 requests a minute per team. So is

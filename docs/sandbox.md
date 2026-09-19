@@ -13,7 +13,7 @@ Limit:     240 requests per minute per key  (HTTP 429, error "rate_limited")
 Your key is on https://plec.ai/hack/dashboard once the challenge is released.
 It identifies your team; every booking made with it belongs to the team.
 
-`agent/plec.js` wraps every endpoint below. `data/listings.json` is the whole
+`backend/agent/plec.js` wraps every endpoint below. `backend/data/listings.json` is the whole
 catalogue for offline reading (the API is the source of truth; the file is a
 copy).
 
@@ -50,7 +50,7 @@ reads the listing beats one that assumes. Facts worth knowing:
 - Photos are `https://picsum.photos/seed/<listingId>-<n>/800/500`, n = 1 to 3.
   They render anywhere.
 
-The whole catalogue is in `data/listings.json`. The table below is the same
+The whole catalogue is in `backend/data/listings.json`. The table below is the same
 data, one line per listing.
 
 | id | name | kind / category | city | capacity | pricing | booking | policy | rules |
@@ -578,7 +578,7 @@ written to be shown to a user as is.
 | 429 | `rate_limited` | more than 240 requests in a minute |
 | 401 | (Nest default body) | missing or unknown key: `{ "statusCode": 401, "message": "...", "error": "Unauthorized" }` |
 
-The 401 body is the framework's, not the sandbox's; `agent/plec.js` normalises
+The 401 body is the framework's, not the sandbox's; `backend/agent/plec.js` normalises
 it to `http_401`.
 
 ## Booking statuses
