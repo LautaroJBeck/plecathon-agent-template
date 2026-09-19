@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, defaultRequest, money, prettyDate, useApi } from './api.js';
 import { BookingLookup } from './BookingLookup.jsx';
-import { ConciergeDock, Launchers, SUGGESTIONS, useConcierge } from './Concierge.jsx';
+import { ConciergeDock, Launchers, SUGGESTIONS, downscale, imageIn, useConcierge } from './Concierge.jsx';
 import { ListingModal, ListingRow, Results } from './Listings.jsx';
 import { Icon } from './ui.jsx';
 
@@ -56,6 +56,8 @@ function Header({ kind, onKind, onSearch, onManage, onAsk }) {
 /** The Concierge, front and center: type here and the chat dock opens with the answer. */
 function Hero({ onAsk, onOpen }) {
   const [text, setText] = useState('');
+  const [photo, setPhoto] = useState(null);
+  const [photoError, setPhotoError] = useState('');
   const photos = useApi(() => api.search({ city: 'Philadelphia', kind: 'venue', limit: 10 }), 'hero-photos');
   const live = useApi(async () => {
     const l = await api.listing(HERO_LISTING);
@@ -64,17 +66,38 @@ function Hero({ onAsk, onOpen }) {
   }, 'hero-quote');
   const pics = photos.data?.results.slice(0, 3) ?? [];
 
+  async function attach(file) {
+    setPhotoError('');
+    try { setPhoto(await downscale(file)); } catch { setPhotoError("Couldn't open that image. Try a JPEG or PNG."); }
+  }
+  function submit(e) {
+    e.preventDefault();
+    if (!text.trim() && !photo) return;
+    onAsk(text, photo);
+    setText('');
+    setPhoto(null);
+  }
+  const takeImage = (files, e) => { const f = imageIn(files); if (f) { e.preventDefault(); attach(f); } };
+
   return (
     <section className="hero">
       <div className="hero-copy">
         <span className="hero-tag"><Icon name="sparkle" size={14} /> New · PLEC Concierge</span>
         <h1>Plan the whole event in <em>one conversation.</em></h1>
         <p>Tell the Concierge what you're celebrating. It searches live availability across Philadelphia, New York and Washington, quotes to the cent, and books it when you say yes.</p>
-        <form className="hero-ask" onSubmit={(e) => { e.preventDefault(); if (text.trim()) { onAsk(text); setText(''); } }}>
+        <form className="hero-ask" onSubmit={submit} onDragOver={(e) => e.preventDefault()} onDrop={(e) => takeImage(e.dataTransfer?.files, e)}>
           <Icon name="sparkle" size={20} className="hero-ask-icon" />
-          <input value={text} onChange={(e) => setText(e.target.value)} placeholder="A rooftop birthday for 40 in Philly next month…" aria-label="Ask the PLEC Concierge" />
-          <button className="btn brand" disabled={!text.trim()}>Ask <Icon name="arrow" size={16} /></button>
+          {photo && (
+            <span className="hero-photo">
+              <img src={photo.url} alt="Photo to send" />
+              <button type="button" className="attached-x" onClick={() => setPhoto(null)} aria-label="Remove photo"><Icon name="x" size={12} /></button>
+            </span>
+          )}
+          <input value={text} onChange={(e) => setText(e.target.value)} onPaste={(e) => takeImage(e.clipboardData?.files, e)}
+            placeholder={photo ? 'Add a few words, or just press Ask' : 'A rooftop birthday for 40 in Philly next month… or paste a photo'} aria-label="Ask the PLEC Concierge" />
+          <button className="btn brand" disabled={!text.trim() && !photo}>Ask <Icon name="arrow" size={16} /></button>
         </form>
+        {photoError && <p className="error">{photoError}</p>}
         <div className="chips">
           {SUGGESTIONS.map((s) => <button key={s} className="chip" onClick={() => onAsk(s)}>{s}</button>)}
         </div>
@@ -208,7 +231,7 @@ export default function App() {
 
   useEffect(() => { if (search) document.getElementById('browse')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, [search]);
 
-  const ask = (text) => { setListingId(null); concierge.send(text); };
+  const ask = (text, photo) => { setListingId(null); concierge.send(text, photo); };
   const browse = (patch) => setSearch({ kind, ...patch });
   const onKind = (k) => { setKind(k); setSearch(search ? { ...search, kind: k, category: undefined } : { kind: k }); };
 

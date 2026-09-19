@@ -22,8 +22,11 @@ const readLog = () => { try { return JSON.parse(read(KEY_LOG) || '[]'); } catch 
 // The user's own photos stay out of the saved log: they would blow the storage quota, and images are never kept.
 const isPhoto = (e) => e.role === 'user' && e.part.kind === 'image';
 
+/** The first image file in a FileList (paste or drop), if any. */
+export const imageIn = (items) => [...(items ?? [])].find((f) => f.type?.startsWith('image/'));
+
 /** Any image file -> { mediaType: 'image/jpeg', data } at most 1024px on its longest side, JPEG quality 0.8. */
-async function downscale(file) {
+export async function downscale(file) {
   const bitmap = await createImageBitmap(file);
   const scale = Math.min(1, PHOTO_MAX_SIDE / Math.max(bitmap.width, bitmap.height));
   const canvas = document.createElement('canvas');
@@ -197,8 +200,6 @@ export function ConciergeDock({ concierge: c, onOpen }) {
       setPhotoError("Couldn't open that image. Try a JPEG or PNG.");
     }
   }
-
-  const imageIn = (items) => [...(items ?? [])].find((f) => f.type?.startsWith('image/'));
 
   return (
     <aside

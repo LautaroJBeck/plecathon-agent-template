@@ -86,6 +86,9 @@ main > section, main > #browse { width: var(--page); margin-inline: auto; }
 .hero-ask { position: relative; display: flex; align-items: center; gap: 8px; max-width: 620px; padding: 7px 7px 7px 50px; border-radius: 999px; background: #fff; border: 1.5px solid var(--brand-100); box-shadow: 0 12px 40px hsl(5 90% 63% / .18); margin-bottom: 16px; }
 .hero-ask:focus-within { border-color: var(--brand); }
 .hero-ask-icon { position: absolute; left: 18px; color: var(--brand); }
+.hero-photo { position: relative; flex: none; }
+.hero-photo img { display: block; width: 40px; height: 40px; object-fit: cover; border-radius: 10px; border: 1px solid var(--border); }
+.hero-photo .attached-x { top: -6px; left: auto; right: -6px; width: 18px; height: 18px; }
 .hero-ask input { flex: 1; min-width: 0; height: 44px; border: 0; outline: 0; font-size: 16px; }
 .hero .chips { max-width: 640px; }
 .hero-art { position: relative; height: 440px; }
