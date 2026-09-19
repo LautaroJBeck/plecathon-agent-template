@@ -178,3 +178,14 @@ test('the loop never sends a gated call the user has not confirmed', async () =>
   assert.equal(session.state.pending, null);
   assert.deepEqual(session.state.bookingRefs, ['BK-1001']);
 });
+
+test('a quote in a turn that already carries consent tells the model to book now', async () => {
+  const session = newSession();
+  session.state.seen = { foundry: { id: 'foundry', name: 'The Foundry at Fishtown' } };
+  const chatCompletion = scripted(withCalls(['c1', 'quote', { listingId: 'foundry' }]), final('ok'), withCalls(['c2', 'quote', { listingId: 'foundry' }]), final('ok'));
+  const callTool = async () => ({ quoteId: 'q1', totalCents: 181500 });
+  await respond({ sessionId: 's', text: 'Book The Foundry at Fishtown, I am Sam Rivera, sam@x.com. Yes, go ahead.', session }, { chatCompletion, callTool });
+  assert.match(session.messages.find((m) => m.role === 'tool').content, /Call book now/);
+  await respond({ sessionId: 's', text: 'How much is The Foundry at Fishtown?', session }, { chatCompletion, callTool });
+  assert.doesNotMatch(session.messages.filter((m) => m.role === 'tool').at(-1).content, /Call book now/);
+});

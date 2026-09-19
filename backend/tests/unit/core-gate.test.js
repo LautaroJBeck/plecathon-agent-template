@@ -137,3 +137,14 @@ test('"yes" after the assistant named the booked listing (not the ref) allows a 
   const gate = checkGate('cancel_booking', { ref: 'BK-1001' }, { session: s, userText: 'yes', prevAssistantText: 'This booking is for The Foundry at Fishtown on October 10. Shall I cancel it?' });
   assert.equal(gate.allow, true);
 });
+
+test('consentsToBook needs a yes, the listing named, and a guest on file', async () => {
+  const { consentsToBook } = await import('../../agent/gate.js');
+  const s = sessionWithFoundry();
+  const text = 'Book The Foundry at Fishtown Oct 10 for 40, I am Sam Rivera, sam@example.com. Yes, go ahead.';
+  assert.equal(consentsToBook(s, text, 'foundry'), false, 'no guest yet');
+  s.state.guest = { name: 'Sam Rivera', email: 'sam@example.com' };
+  assert.equal(consentsToBook(s, text, 'foundry'), true);
+  assert.equal(consentsToBook(s, 'How much is The Foundry at Fishtown?', 'foundry'), false);
+  assert.equal(consentsToBook(s, 'yes', 'foundry'), false);
+});

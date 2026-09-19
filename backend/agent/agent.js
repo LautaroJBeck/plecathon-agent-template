@@ -10,7 +10,7 @@ import { extraTools, callExtraTool as defaultCallExtraTool } from './extras.js';
 import { toParts } from './parts.js';
 import { systemPrompt } from './prompt.js';
 import { noteUserText, remember } from './state.js';
-import { checkGate, noteUserTurn, settleGate } from './gate.js';
+import { checkGate, consentsToBook, noteUserTurn, settleGate } from './gate.js';
 
 /** Model rounds per turn. Every round costs quota, so keep it small. */
 export const MAX_ROUNDS = 5;
@@ -26,6 +26,7 @@ const PLEC_TOOL_NAMES = new Set(plecTools.map((t) => t.function.name));
 
 const BUSY_TEXT = "I'm getting a lot of requests right now. Please try again in about a minute.";
 const ERROR_TEXT = 'Something went wrong on my side. Could you try that once more?';
+const BOOK_NOW_NOTE = "NOTE: the user's latest message already confirms this booking and the guest's name and email are on file. Call book now with this quoteId and these inputs; do not ask again.";
 const LOST_TEXT = 'Sorry, I lost the thread there. Could you say that again?';
 
 /**
@@ -78,7 +79,11 @@ async function runTurn(userText, session, deps) {
     calls.forEach(({ call, args }, i) => {
       turnResults.push({ name: call.name, args, result: results[i] });
       remember(session, call.name, args, results[i]);
-      session.messages.push({ role: 'tool', tool_call_id: call.id, content: toolContent(call.name, results[i]) });
+      let content = toolContent(call.name, results[i]);
+      if (call.name === 'quote' && !results[i]?.error && consentsToBook(session, userText, args.listingId)) {
+        content += `\n${BOOK_NOW_NOTE}`;
+      }
+      session.messages.push({ role: 'tool', tool_call_id: call.id, content });
     });
   }
 

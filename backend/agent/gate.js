@@ -129,6 +129,18 @@ export function checkGate(name, args, { session, userText, prevAssistantText }) 
   };
 }
 
+/**
+ * The current message already says yes to booking this listing, and the guest
+ * is known: the model should book this turn instead of asking again.
+ * @param {{ state: object }} session
+ * @param {string} userText
+ * @param {string} listingId
+ */
+export function consentsToBook(session, userText, listingId) {
+  const name = session.state.seen?.[listingId]?.name;
+  return Boolean(name && session.state.guest && isAffirmative(userText) && mentions(userText, name));
+}
+
 /** After an allowed call ran: success clears pending; an error leaves the action not done. */
 export function settleGate(session, name, result) {
   if (!GATED.has(name)) return;
