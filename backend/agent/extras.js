@@ -9,6 +9,7 @@
 
 import { readFileSync } from 'node:fs';
 import { registerListings } from './shared.js';
+import { describeVibe } from './vision.js';
 
 const CATALOGUE = JSON.parse(readFileSync(new URL('../data/listings.json', import.meta.url), 'utf8'));
 const BY_ID = new Map(CATALOGUE.map((l) => [l.id, l]));
@@ -68,12 +69,46 @@ const EXTRA_TOOLS_GUIDE = `Vibe: when the user describes a look, mood or style, 
 
 /** Extra system-prompt text (tag protocol, extra scope, photo/location context). May be ''. */
 export function extraPromptSection(session) {
-  const vibe = session?.state?.vibe;
+  const state = session?.state ?? {};
+  const vibe = state.vibe;
   const lines = [TAG_PROTOCOL, EXTRA_TOOLS_GUIDE];
   if (vibe?.description || vibe?.liked?.length || vibe?.disliked?.length) {
     lines.push(`The user's vibe: ${vibe.description || 'not described'}. Liked: ${names(vibe.liked)}. Disliked: ${names(vibe.disliked)}.`);
   }
+  if (state.photoTurn === 'read') {
+    lines.push(`The user sent a photo this turn. It reads as: "${vibe.description}" Call search_by_vibe now with these keywords: ${vibe.keywords.join(', ')}.`);
+  } else if (state.photoTurn === 'unreadable') {
+    lines.push("The user sent a photo this turn, but it couldn't be read. Tell them you couldn't read the photo and ask them to describe the vibe in words.");
+  }
   return lines.join('\n');
+}
+
+const PHOTO_TIMEOUT_MS = 15_000;
+
+/** Runs before the model each turn (server.js): reads this turn's photo, if any, into state.vibe.
+ *  Sets state.photoTurn for this turn's prompt, always drops the image, never throws. */
+export async function prepareTurn(session, { describe = describeVibe } = {}) {
+  const state = session?.state;
+  if (!state) return;
+  delete state.photoTurn;
+  const image = state.turnImage;
+  delete state.turnImage;
+  if (!image) return;
+  let timer;
+  try {
+    const read = await Promise.race([
+      describe(image),
+      new Promise((resolve) => { timer = setTimeout(resolve, PHOTO_TIMEOUT_MS, { error: 'vision_timeout' }); }),
+    ]);
+    if (!read?.summary) throw new Error(read?.error ?? 'no summary');
+    state.vibe = { ...vibeOf(state), description: read.summary, keywords: read.keywords ?? [], fromImage: true };
+    state.photoTurn = 'read';
+  } catch (err) {
+    console.warn('[photo] not read:', err?.message ?? err);
+    state.photoTurn = 'unreadable';
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 const names = (ids) => (ids?.length ? ids.map((id) => BY_ID.get(id)?.name ?? id).join(', ') : 'none');

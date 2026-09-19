@@ -1,7 +1,7 @@
 /**
  * Zero-dependency HTTP server for the agent contract (docs/contract.md):
  *
- *   POST /agent/messages   { sessionId, text }  ->  { parts: Part[] }
+ *   POST /agent/messages   { sessionId, text, image?, location? }  ->  { parts: Part[] }
  *   POST /agent/reset      { sessionId }        ->  { ok: true }
  *   GET  /health           { ok: true }
  *   /api/*                 read-only sandbox routes for the site (see handleApi)
@@ -17,6 +17,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { respond } from './agent.js';
+import { prepareTurn } from './extras.js';
 import { plec, PlecError } from './plec.js';
 import { getSession, resetSession } from './session.js';
 
@@ -26,7 +27,10 @@ loadDotEnv(join(ROOT, '.env'));
 const PORT = Number(process.env.AGENT_PORT) || 8787;
 /** The evaluator gives up at 45s; answer with an error before that so the failure is visible. */
 const TURN_DEADLINE_MS = 40_000;
-const MAX_BODY_BYTES = 64 * 1024;
+/** Room for one downscaled photo; see validImage. */
+const MAX_BODY_BYTES = 6 * 1024 * 1024;
+const MAX_IMAGE_CHARS = 5 * 1024 * 1024;
+const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 
 const server = createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -54,11 +58,24 @@ async function handleMessage(req, res) {
   const text = typeof body.text === 'string' ? body.text.trim() : '';
   if (!sessionId) return json(res, 400, { error: 'session_required', message: 'sessionId must be a non-empty string' });
   if (!text) return json(res, 400, { error: 'text_required', message: 'text must be a non-empty string' });
+  // Optional extras only our chat page sends: a photo for this turn, and the browser's location.
+  const image = body.image == null ? null : validImage(body.image);
+  if (body.image != null && !image) {
+    return json(res, 400, { error: 'bad_image', message: `image must be { mediaType: ${IMAGE_TYPES.join('|')}, data: base64 up to 5 MB }` });
+  }
+  const session = getSession(sessionId);
+  if (image) session.state.turnImage = image;
+  const location = validLocation(body.location);
+  if (location) session.state.userLocation = { ...location, at: Date.now() };
 
   const startedAt = Date.now();
   let parts;
   try {
-    parts = await withDeadline(respond({ sessionId, text, session: getSession(sessionId) }), TURN_DEADLINE_MS);
+    const turn = async () => {
+      await prepareTurn(session);
+      return respond({ sessionId, text, session });
+    };
+    parts = await withDeadline(turn(), TURN_DEADLINE_MS);
   } catch (err) {
     const timedOut = err?.code === 'DEADLINE';
     console.error(`[turn ${sessionId.slice(0, 8)}] failed after ${Date.now() - startedAt}ms:`, timedOut ? err.message : err);
@@ -140,6 +157,19 @@ function isPart(part) {
     case 'image': return typeof part.url === 'string';
     default: return false;
   }
+}
+
+function validImage(image) {
+  const { mediaType, data } = image ?? {};
+  const ok = IMAGE_TYPES.includes(mediaType) && typeof data === 'string' && data.length > 0
+    && data.length <= MAX_IMAGE_CHARS && /^[A-Za-z0-9+/]+={0,2}$/.test(data);
+  return ok ? { mediaType, data } : null;
+}
+
+function validLocation(location) {
+  const { lat, lng } = location ?? {};
+  const ok = Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
+  return ok ? { lat, lng } : null;
 }
 
 function readJson(req) {
