@@ -4,6 +4,7 @@
  *   POST /agent/messages   { sessionId, text, image?, location? }  ->  { parts: Part[] }
  *   POST /agent/reset      { sessionId }        ->  { ok: true }
  *   GET  /health           { ok: true }
+ *   GET|POST /api/webhooks/whatsapp   WhatsApp Cloud API webhook (see whatsapp.js)
  *   /api/*                 read-only sandbox routes for the site (see handleApi)
  *
  * The site is its own process (frontend/, Vite). CORS is
@@ -20,6 +21,7 @@ import { respond } from './agent.js';
 import { prepareTurn } from './extras.js';
 import { plec, PlecError } from './plec.js';
 import { getSession, resetSession } from './session.js';
+import { handleWebhook, subscriptionChallenge, validSignature } from './whatsapp.js';
 
 const ROOT = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
 loadDotEnv(join(ROOT, '.env'));
@@ -43,6 +45,7 @@ const server = createServer(async (req, res) => {
     if (req.method === 'GET' && url.pathname === '/health') return json(res, 200, { ok: true });
     if (req.method === 'POST' && url.pathname === '/agent/messages') return await handleMessage(req, res);
     if (req.method === 'POST' && url.pathname === '/agent/reset') return await handleReset(req, res);
+    if (url.pathname === '/api/webhooks/whatsapp') return await handleWhatsApp(req, res, url);
     if (url.pathname.startsWith('/api/')) return await handleApi(req, res, url);
     return json(res, 404, { error: 'not_found', message: `No route ${req.method} ${url.pathname}` });
   } catch (err) {
@@ -69,20 +72,15 @@ async function handleMessage(req, res) {
   if (location) session.state.userLocation = { ...location, at: Date.now() };
 
   const startedAt = Date.now();
-  let parts;
+  let clean;
   try {
-    const turn = async () => {
-      await prepareTurn(session);
-      return respond({ sessionId, text, session });
-    };
-    parts = await withDeadline(turn(), TURN_DEADLINE_MS);
+    clean = await takeTurn(sessionId, text);
   } catch (err) {
     const timedOut = err?.code === 'DEADLINE';
     console.error(`[turn ${sessionId.slice(0, 8)}] failed after ${Date.now() - startedAt}ms:`, timedOut ? err.message : err);
     return json(res, timedOut ? 504 : 500, { error: timedOut ? 'agent_timeout' : 'agent_error', message: err?.message ?? String(err) });
   }
 
-  const clean = Array.isArray(parts) ? parts.filter(isPart) : [];
   if (clean.length === 0) {
     return json(res, 500, { error: 'no_parts', message: 'respond() returned no valid parts. See docs/contract.md for the shapes.' });
   }
@@ -91,6 +89,48 @@ async function handleMessage(req, res) {
   }
   console.log(`[turn ${sessionId.slice(0, 8)}] ${Date.now() - startedAt}ms  "${text.slice(0, 60)}" -> ${clean.map((p) => p.kind).join(',')}`);
   return json(res, 200, { parts: clean });
+}
+
+/** One agent turn for any channel: read this turn's photo, then respond(), inside the deadline.
+ *  Returns only the parts that match the contract. Throws { code: 'DEADLINE' } when it runs out. */
+async function takeTurn(sessionId, text) {
+  const session = getSession(sessionId);
+  const turn = async () => {
+    await prepareTurn(session);
+    return respond({ sessionId, text, session });
+  };
+  const parts = await withDeadline(turn(), TURN_DEADLINE_MS);
+  return Array.isArray(parts) ? parts.filter(isPart) : [];
+}
+
+/**
+ * Meta's WhatsApp webhook: GET is the one-time subscription check, POST is a
+ * signed delivery. A delivery is acknowledged at once, because Meta retries a
+ * slow webhook and a turn can take 30s; the reply goes out through the API.
+ */
+async function handleWhatsApp(req, res, url) {
+  if (req.method === 'GET') {
+    const challenge = subscriptionChallenge(url.searchParams);
+    if (challenge === null) return json(res, 403, { error: 'forbidden', message: 'hub.verify_token does not match WHATSAPP_VERIFY_TOKEN.' });
+    res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
+    return res.end(challenge);
+  }
+  if (req.method !== 'POST') return json(res, 405, { error: 'method_not_allowed', message: 'Use GET or POST.' });
+  if (!process.env.WHATSAPP_APP_SECRET) {
+    return json(res, 503, { error: 'not_configured', message: 'Set WHATSAPP_APP_SECRET to accept WhatsApp webhooks.' });
+  }
+  const raw = await readBody(req);
+  if (!raw || !validSignature(raw, req.headers['x-hub-signature-256'])) {
+    return json(res, 401, { error: 'bad_signature', message: 'X-Hub-Signature-256 does not match the body.' });
+  }
+  let payload;
+  try {
+    payload = JSON.parse(raw);
+  } catch {
+    return json(res, 400, { error: 'bad_json', message: 'The webhook body is not JSON.' });
+  }
+  json(res, 200, { ok: true });
+  handleWebhook(payload, takeTurn);
 }
 
 async function handleReset(req, res) {
@@ -172,18 +212,23 @@ function validLocation(location) {
   return ok ? { lat, lng } : null;
 }
 
-function readJson(req) {
+/** The raw body bytes (the WhatsApp signature is over these), or null past MAX_BODY_BYTES. */
+function readBody(req) {
   return new Promise((resolve) => {
-    let raw = '';
+    const chunks = [];
+    let size = 0;
     req.on('data', (chunk) => {
-      raw += chunk;
-      if (raw.length > MAX_BODY_BYTES) req.destroy();
+      size += chunk.length;
+      if (size <= MAX_BODY_BYTES) chunks.push(chunk);
     });
-    req.on('end', () => {
-      try { resolve(raw ? JSON.parse(raw) : null); } catch { resolve(null); }
-    });
+    req.on('end', () => resolve(size <= MAX_BODY_BYTES ? Buffer.concat(chunks) : null));
     req.on('error', () => resolve(null));
   });
+}
+
+async function readJson(req) {
+  const raw = await readBody(req);
+  try { return raw?.length ? JSON.parse(raw) : null; } catch { return null; }
 }
 
 function withDeadline(promise, ms) {
