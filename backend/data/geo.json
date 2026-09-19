@@ -1,0 +1,462 @@
+{
+  "foundry-fishtown": {
+    "lat": 39.9720358,
+    "lng": -75.135398,
+    "precision": "address"
+  },
+  "rooftop-at-rittenhouse": {
+    "lat": 39.950337,
+    "lng": -75.172928,
+    "precision": "address"
+  },
+  "old-city-ballroom": {
+    "lat": 39.9485611,
+    "lng": -75.1445693,
+    "precision": "address"
+  },
+  "the-greenhouse-uc": {
+    "lat": 39.955081,
+    "lng": -75.198486,
+    "precision": "address"
+  },
+  "walnut-street-parlor": {
+    "lat": 39.949928,
+    "lng": -75.1669491,
+    "precision": "address"
+  },
+  "schuylkill-boathouse": {
+    "lat": 39.964448,
+    "lng": -75.1777871,
+    "precision": "address"
+  },
+  "northern-liberties-warehouse": {
+    "lat": 39.9661066,
+    "lng": -75.1403936,
+    "precision": "address"
+  },
+  "manayunk-tap-room": {
+    "lat": 40.0223235,
+    "lng": -75.2189308,
+    "precision": "address"
+  },
+  "south-street-studio": {
+    "lat": 39.9417384,
+    "lng": -75.1513546,
+    "precision": "address"
+  },
+  "spruce-hill-reading-room": {
+    "lat": 39.952922,
+    "lng": -75.213238,
+    "precision": "address"
+  },
+  "east-passyunk-supper-club": {
+    "lat": 39.9286304,
+    "lng": -75.165139,
+    "precision": "address"
+  },
+  "frankford-arts-hall": {
+    "lat": 40.0110897,
+    "lng": -75.0887991,
+    "precision": "address"
+  },
+  "university-city-terrace": {
+    "lat": 39.9521611,
+    "lng": -75.1851511,
+    "precision": "address"
+  },
+  "bella-vista-courtyard": {
+    "lat": 39.939638,
+    "lng": -75.157818,
+    "precision": "address"
+  },
+  "graduate-hospital-loft": {
+    "lat": 39.9450899,
+    "lng": -75.1787404,
+    "precision": "address"
+  },
+  "fishtown-brewery-hall": {
+    "lat": 39.9787909,
+    "lng": -75.1305795,
+    "precision": "address"
+  },
+  "chestnut-hill-conservatory": {
+    "lat": 40.0771793,
+    "lng": -75.2093604,
+    "precision": "address"
+  },
+  "queen-village-cellar": {
+    "lat": 39.9411256,
+    "lng": -75.1458831,
+    "precision": "address"
+  },
+  "williamsburg-loft-nyc": {
+    "lat": 40.7181335,
+    "lng": -73.9598616,
+    "precision": "address"
+  },
+  "soho-gallery-nyc": {
+    "lat": 40.72287,
+    "lng": -74.0023481,
+    "precision": "address"
+  },
+  "midtown-rooftop-nyc": {
+    "lat": 40.7544496,
+    "lng": -73.9896795,
+    "precision": "address"
+  },
+  "georgetown-townhouse-dc": {
+    "lat": 38.9050423,
+    "lng": -77.0613119,
+    "precision": "address"
+  },
+  "navy-yard-hall-dc": {
+    "lat": 38.8716043,
+    "lng": -77.0057659,
+    "precision": "address"
+  },
+  "dupont-parlor-dc": {
+    "lat": 38.9106375,
+    "lng": -77.0441321,
+    "precision": "address"
+  },
+  "the-piazza-hall": {
+    "lat": 39.9665561,
+    "lng": -75.1391589,
+    "precision": "address"
+  },
+  "kensington-print-shop": {
+    "lat": 39.98596,
+    "lng": -75.117858,
+    "precision": "address"
+  },
+  "rittenhouse-library-salon": {
+    "lat": 39.9474577,
+    "lng": -75.1584307,
+    "precision": "address"
+  },
+  "fairmount-water-works-terrace": {
+    "lat": 39.9663439,
+    "lng": -75.1835601,
+    "precision": "address"
+  },
+  "passyunk-bocce-club": {
+    "lat": 39.9308547,
+    "lng": -75.1624296,
+    "precision": "address"
+  },
+  "cedar-park-porch-house": {
+    "lat": 39.948061,
+    "lng": -75.221379,
+    "precision": "address"
+  },
+  "south-philly-social-hall": {
+    "lat": 39.9193489,
+    "lng": -75.171143,
+    "precision": "address"
+  },
+  "brewerytown-garage": {
+    "lat": 39.9744231,
+    "lng": -75.1836585,
+    "precision": "address"
+  },
+  "girard-college-chapel-lawn": {
+    "lat": 39.9737899,
+    "lng": -75.170157,
+    "precision": "address"
+  },
+  "center-city-boardroom": {
+    "lat": 39.9527141,
+    "lng": -75.1692794,
+    "precision": "address"
+  },
+  "the-met-annex": {
+    "lat": 39.9695108,
+    "lng": -75.1599683,
+    "precision": "address"
+  },
+  "manayunk-canal-deck": {
+    "lat": 40.0259175,
+    "lng": -75.2250115,
+    "precision": "address"
+  },
+  "old-city-carriage-house": {
+    "lat": 39.9511772,
+    "lng": -75.1435703,
+    "precision": "address"
+  },
+  "wissahickon-lodge": {
+    "lat": 40.0488412,
+    "lng": -75.2141456,
+    "precision": "address"
+  },
+  "northern-liberties-rooftop-garden": {
+    "lat": 39.9620488,
+    "lng": -75.1413848,
+    "precision": "address"
+  },
+  "university-city-science-atrium": {
+    "lat": 39.9569316,
+    "lng": -75.196818,
+    "precision": "address"
+  },
+  "fishtown-record-bar": {
+    "lat": 39.968889,
+    "lng": -75.134535,
+    "precision": "address"
+  },
+  "south-street-black-box": {
+    "lat": 39.9420893,
+    "lng": -75.1540934,
+    "precision": "address"
+  },
+  "italian-market-test-kitchen": {
+    "lat": 39.937482,
+    "lng": -75.158284,
+    "precision": "address"
+  },
+  "delaware-river-pier-tent": {
+    "lat": 39.944005,
+    "lng": -75.141859,
+    "precision": "address"
+  },
+  "germantown-meetinghouse": {
+    "lat": 40.040618,
+    "lng": -75.178888,
+    "precision": "address"
+  },
+  "callowhill-loft-studio-b": {
+    "lat": 39.9613186,
+    "lng": -75.154161,
+    "precision": "address"
+  },
+  "point-breeze-community-garden": {
+    "lat": 39.9310648,
+    "lng": -75.1831985,
+    "precision": "address"
+  },
+  "spring-garden-ballroom-annex": {
+    "lat": 39.9633525,
+    "lng": -75.1675048,
+    "precision": "address"
+  },
+  "schuylkill-river-kayak-dock": {
+    "lat": 39.9392335,
+    "lng": -75.1982925,
+    "precision": "address"
+  },
+  "rittenhouse-hotel-penthouse": {
+    "lat": 39.9498637,
+    "lng": -75.1734752,
+    "precision": "address"
+  },
+  "west-philly-skate-warehouse": {
+    "lat": 39.977197,
+    "lng": -75.226943,
+    "precision": "address"
+  },
+  "lower-east-side-basement-bar": {
+    "lat": 40.7199656,
+    "lng": -73.9886535,
+    "precision": "address"
+  },
+  "harlem-brownstone-parlor": {
+    "lat": 40.8054249,
+    "lng": -73.9493393,
+    "precision": "address"
+  },
+  "long-island-city-warehouse": {
+    "lat": 40.7546104,
+    "lng": -73.9490235,
+    "precision": "address"
+  },
+  "west-village-wine-cellar": {
+    "lat": 40.7331451,
+    "lng": -74.0035331,
+    "precision": "address"
+  },
+  "central-park-boathouse-lawn": {
+    "lat": 40.7821016,
+    "lng": -73.9758336,
+    "precision": "address"
+  },
+  "shaw-jazz-lounge": {
+    "lat": 38.915694,
+    "lng": -77.024069,
+    "precision": "address"
+  },
+  "capitol-hill-rowhouse-garden": {
+    "lat": 38.8888268,
+    "lng": -76.9981936,
+    "precision": "address"
+  },
+  "union-market-loft-dc": {
+    "lat": 38.9086101,
+    "lng": -76.9974046,
+    "precision": "address"
+  },
+  "anacostia-arts-center-hall": {
+    "lat": 38.8654418,
+    "lng": -76.9842531,
+    "precision": "neighborhood"
+  },
+  "dj-marco-reyes": {
+    "lat": 39.9732555,
+    "lng": -75.1304082,
+    "precision": "neighborhood"
+  },
+  "night-owl-sound": {
+    "lat": 39.9650487,
+    "lng": -75.1418546,
+    "precision": "neighborhood"
+  },
+  "lena-park-photography": {
+    "lat": 39.9489111,
+    "lng": -75.1701362,
+    "precision": "neighborhood"
+  },
+  "brick-lens-studio": {
+    "lat": 39.9255456,
+    "lng": -75.1694641,
+    "precision": "neighborhood"
+  },
+  "la-esquina-catering": {
+    "lat": 39.938892,
+    "lng": -75.157975,
+    "precision": "address"
+  },
+  "fishtown-smokehouse": {
+    "lat": 39.981578,
+    "lng": -75.127627,
+    "precision": "address"
+  },
+  "pour-decisions-bartending": {
+    "lat": 39.952392,
+    "lng": -75.1636043,
+    "precision": "neighborhood"
+  },
+  "petal-and-stem-florals": {
+    "lat": 39.9404955,
+    "lng": -75.149667,
+    "precision": "address"
+  },
+  "liberty-av-lighting": {
+    "lat": 39.9863549,
+    "lng": -75.1009166,
+    "precision": "neighborhood"
+  },
+  "snapbox-photo-booth": {
+    "lat": 39.9600023,
+    "lng": -75.2248861,
+    "precision": "neighborhood"
+  },
+  "the-schuylkill-five": {
+    "lat": 39.9723349,
+    "lng": -75.181012,
+    "precision": "neighborhood"
+  },
+  "eve-and-co-planning": {
+    "lat": 39.952392,
+    "lng": -75.1636043,
+    "precision": "neighborhood"
+  },
+  "brooklyn-beats-dj-nyc": {
+    "lat": 40.6942696,
+    "lng": -73.9187482,
+    "precision": "neighborhood"
+  },
+  "capital-bites-catering-dc": {
+    "lat": 38.9144606,
+    "lng": -77.0221872,
+    "precision": "address"
+  },
+  "reel-story-video": {
+    "lat": 39.9732555,
+    "lng": -75.1304082,
+    "precision": "neighborhood"
+  },
+  "the-liberty-strings": {
+    "lat": 39.952392,
+    "lng": -75.1636043,
+    "precision": "neighborhood"
+  },
+  "nova-cover-band": {
+    "lat": 39.9255456,
+    "lng": -75.1694641,
+    "precision": "neighborhood"
+  },
+  "the-amazing-raul": {
+    "lat": 40.0290779,
+    "lng": -75.2241689,
+    "precision": "neighborhood"
+  },
+  "party-props-philly": {
+    "lat": 39.9863549,
+    "lng": -75.1009166,
+    "precision": "neighborhood"
+  },
+  "keystone-event-rentals": {
+    "lat": 39.9130945,
+    "lng": -75.2433102,
+    "precision": "neighborhood"
+  },
+  "schuylkill-shuttles": {
+    "lat": 39.9351129,
+    "lng": -75.1921238,
+    "precision": "neighborhood"
+  },
+  "liberty-bell-security": {
+    "lat": 39.952392,
+    "lng": -75.1636043,
+    "precision": "neighborhood"
+  },
+  "spotless-after-parties": {
+    "lat": 39.9859458,
+    "lng": -75.1318429,
+    "precision": "neighborhood"
+  },
+  "sugar-and-crumb-bakery": {
+    "lat": 39.942521,
+    "lng": -75.149081,
+    "precision": "address"
+  },
+  "shake-and-stir-classes": {
+    "lat": 39.9489111,
+    "lng": -75.1701362,
+    "precision": "neighborhood"
+  },
+  "captain-bubbles-kids": {
+    "lat": 40.0306496,
+    "lng": -75.2135556,
+    "precision": "neighborhood"
+  },
+  "mic-drop-hosting": {
+    "lat": 39.9600023,
+    "lng": -75.2248861,
+    "precision": "neighborhood"
+  },
+  "glow-lighting-design": {
+    "lat": 39.9670053,
+    "lng": -75.2367014,
+    "precision": "neighborhood"
+  },
+  "harlem-soul-caterers-nyc": {
+    "lat": 40.8155551,
+    "lng": -73.9438337,
+    "precision": "address"
+  },
+  "gotham-photo-collective-nyc": {
+    "lat": 40.72288,
+    "lng": -73.9987505,
+    "precision": "neighborhood"
+  },
+  "district-dj-collective-dc": {
+    "lat": 38.9169953,
+    "lng": -77.0273933,
+    "precision": "neighborhood"
+  },
+  "monument-florals-dc": {
+    "lat": 38.9091091,
+    "lng": -77.0633914,
+    "precision": "address"
+  }
+}

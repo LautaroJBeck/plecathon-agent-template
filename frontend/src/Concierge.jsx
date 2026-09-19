@@ -43,7 +43,20 @@ export function useConcierge() {
   const [entries, setEntries] = useState(readLog);
   const [sending, setSending] = useState(false);
   const [open, setOpen] = useState(false);
+  const [locationOn, setLocationOn] = useState(null); // null until the browser answers
   const busy = useRef(false);
+  const where = useRef(null);
+
+  // Asked once, when the chat first opens. Kept in memory only and sent with every message.
+  useEffect(() => {
+    if (!open || locationOn !== null) return;
+    if (!navigator.geolocation) return setLocationOn(false);
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => { where.current = { lat: coords.latitude, lng: coords.longitude }; setLocationOn(true); },
+      () => setLocationOn(false),
+      { timeout: 8000, maximumAge: 10 * 60 * 1000 },
+    );
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => write(KEY_SESSION, sessionId), [sessionId]);
   useEffect(() => write(KEY_LOG, JSON.stringify(entries.filter((e) => !isPhoto(e)).slice(-200))), [entries]);
@@ -63,7 +76,7 @@ export function useConcierge() {
       const res = await fetch('/agent/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId, text, ...(image && { image }) }),
+        body: JSON.stringify({ sessionId, text, ...(image && { image }), ...(where.current && { location: where.current }) }),
         signal: AbortSignal.timeout(TURN_TIMEOUT_MS),
       });
       const body = await res.json().catch(() => ({}));
@@ -90,7 +103,7 @@ export function useConcierge() {
     setEntries([]);
   }
 
-  return { entries, sending, open, setOpen, send, reset };
+  return { entries, sending, open, setOpen, send, reset, locationOn };
 }
 
 // Only http(s) and mailto links from the agent are rendered as links: its text can be steered by host-written data.
@@ -251,7 +264,10 @@ export function ConciergeDock({ concierge: c }) {
         />
         <button className="send" disabled={(!draft.trim() && !photo) || c.sending} aria-label="Send message"><Icon name="up" /></button>
       </form>
-      <p className="fine">AI assistant. It can make mistakes. Nothing is booked until you say yes.</p>
+      <p className="fine">
+        {c.locationOn !== null && <>{c.locationOn ? '📍 Using your location' : 'Location off'} · </>}
+        AI assistant. It can make mistakes. Nothing is booked until you say yes.
+      </p>
     </aside>
   );
 }

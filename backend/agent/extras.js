@@ -10,6 +10,7 @@
 import { readFileSync } from 'node:fs';
 import { registerListings } from './shared.js';
 import { describeVibe } from './vision.js';
+import { haversineMiles, pointOf, resolveOrigin } from './geo.js';
 
 const CATALOGUE = JSON.parse(readFileSync(new URL('../data/listings.json', import.meta.url), 'utf8'));
 const BY_ID = new Map(CATALOGUE.map((l) => [l.id, l]));
@@ -43,6 +44,16 @@ export const extraTools = [
       guests: GUESTS,
       limit: LIMIT,
     }, ['likedIds']),
+  fn('nearby_listings',
+    'Listings sorted by distance, each with distanceMiles. Use for "near me" (the browser location, when the user shared it) or "near <neighborhood or venue name>" (pass it as near). Headcount defaults to memory.',
+    {
+      near: { type: 'string', description: 'A neighborhood (Fishtown, Rittenhouse, Georgetown ...) or a listing name. Omit for "near me".' },
+      kind: { type: 'string', enum: ['venue', 'service'], description: 'Default venue' },
+      category: { type: 'string' },
+      city: CITY,
+      guests: GUESTS,
+      limit: LIMIT,
+    }),
 ];
 
 export const gatedExtraTools = []; // names of extra tools that need a user "yes" (A's gate enforces it)
@@ -55,6 +66,7 @@ export async function callExtraTool(name, args, ctx) {
     switch (name) {
       case 'search_by_vibe': return searchByVibe(args ?? {}, session);
       case 'find_similar_listings': return findSimilarListings(args ?? {}, session);
+      case 'nearby_listings': return nearbyListings(args ?? {}, session);
       default: return { error: 'unknown_tool', message: `No tool named ${name}.` };
     }
   } catch (err) {
@@ -65,7 +77,7 @@ export async function callExtraTool(name, args, ctx) {
 
 const TAG_PROTOCOL = `Showing listings: to show listings, end your reply with a line "CARDS: id1, id2" using ids from tool results only (at most 6, best first). Cards are numbered in that order and carry the name, category, capacity and price, so keep your text short and don't repeat those details. When the user refers to a number ("I like 1 and 3"), it is the position in your last CARDS line. For photos of a listing, add a line "PHOTOS: id". For a map, fetch the listing with get_listing and add "MAP: id". Never write image URLs or markdown images yourself.`;
 
-const EXTRA_TOOLS_GUIDE = `Vibe: when the user describes a look, mood or style, call search_by_vibe. When they pick listings by number or name, call find_similar_listings with those ids; city and headcount are in memory, so don't ask again. These tools never give totals: prices come from quote.`;
+const EXTRA_TOOLS_GUIDE = `Vibe: when the user describes a look, mood or style, call search_by_vibe. When they pick listings by number or name, call find_similar_listings with those ids; city and headcount are in memory, so don't ask again. For "near me" or "near <place>", call nearby_listings; if it returns location_unknown, ask which neighborhood. These tools never give totals: prices come from quote.`;
 
 /** Extra system-prompt text (tag protocol, extra scope, photo/location context). May be ''. */
 export function extraPromptSection(session) {
@@ -75,6 +87,7 @@ export function extraPromptSection(session) {
   if (vibe?.description || vibe?.liked?.length || vibe?.disliked?.length) {
     lines.push(`The user's vibe: ${vibe.description || 'not described'}. Liked: ${names(vibe.liked)}. Disliked: ${names(vibe.disliked)}.`);
   }
+  if (state.userLocation) lines.push("The user shared their location. Use nearby_listings for 'near me' questions.");
   if (state.photoTurn === 'read') {
     lines.push(`The user sent a photo this turn. It reads as: "${vibe.description}" Call search_by_vibe now with these keywords: ${vibe.keywords.join(', ')}.`);
   } else if (state.photoTurn === 'unreadable') {
@@ -272,4 +285,27 @@ function findSimilarListings(args, session) {
   registerListings(session, hits, { asResults: true });
   const similarTo = liked.map((l) => l.name);
   return hits.length ? { similarTo, results: hits } : { similarTo, results: [], message: 'Nothing else close fits these filters.' };
+}
+
+// ---------------------------------------------------------------------------
+// B5: distance search.
+
+function nearbyListings(args, session) {
+  const state = session.state;
+  const origin = resolveOrigin(args, session);
+  if (!origin) return { error: 'location_unknown', message: 'Ask for a neighborhood, or ask them to allow location in the browser.' };
+  const pool = filterCatalogue({
+    city: args.city,
+    kind: args.kind ?? 'venue',
+    category: args.category,
+    guests: args.guests ?? state.guestCount,
+  }, vibeOf(state).disliked);
+  const hits = pool
+    .filter((l) => pointOf(l.id))
+    .map((l) => ({ l, miles: haversineMiles(origin, pointOf(l.id)) }))
+    .sort((a, b) => a.miles - b.miles)
+    .slice(0, clampLimit(args.limit))
+    .map(({ l, miles }) => compactHit(l, { distanceMiles: Math.round(miles * 10) / 10 }));
+  registerListings(session, hits, { asResults: true });
+  return hits.length ? { origin: origin.label, results: hits } : { origin: origin.label, results: [], message: 'No listings fit these filters.' };
 }
