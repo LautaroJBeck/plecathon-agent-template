@@ -204,3 +204,12 @@ test('no confirm part without the guest, for a plain price answer, or once booke
   const booked = [...quoted, { name: 'book', args: {}, result: { ref: 'BK-1001', listingId: 'foundry-fishtown', status: 'pending_payment' } }];
   assert.equal(confirmOf(toParts('Booked! Want anything else?', sessionWith([FOUNDRY], { state: { guest: GUEST } }), booked)), undefined);
 });
+
+test('the confirm part uses the last quote when this turn only asks (the quote came turns earlier)', () => {
+  const session = sessionWith([FOUNDRY, BALLROOM], { state: { guest: GUEST, lastQuote: QUOTE } });
+  const c = confirmOf(toParts('To confirm: book The Foundry at Fishtown for October 10, total $1,815.00. Shall I book it?', session, []));
+  assert.equal(c?.title, FOUNDRY.name);
+  assert.equal(c.totalCents, 181500);
+  // an old quote for a listing this text doesn't name is not what's being asked about
+  assert.equal(confirmOf(toParts('Shall I book Old City Ballroom?', session, [])), undefined);
+});

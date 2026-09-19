@@ -94,10 +94,14 @@ function confirmFor(text, session, turnResults) {
   if (!s.guest?.name || !s.guest?.email) return null;
   if (all.some((r) => r?.name === 'book' && r.result && !r.result.error)) return null;
   const held = all.some((r) => r?.name === 'book' && r.result?.error === 'needs_confirmation');
-  const q = all.findLast((r) => r?.name === 'quote' && r.result && !r.result.error)?.result ?? (held ? s.lastQuote : null);
-  if (!q?.totalCents || !(held || (text.includes('?') && ASKS_TO_BOOK.test(text)))) return null;
-  const l = s.seen?.[q.listingId];
-  if (!l?.name) return null;
+  const asks = text.includes('?') && ASKS_TO_BOOK.test(text);
+  if (!held && !asks) return null;
+  const quotedNow = all.findLast((r) => r?.name === 'quote' && r.result && !r.result.error)?.result;
+  // No quote this turn: the last one counts if the gate held a book back, or the text names its listing.
+  const last = s.lastQuote && (held || names(text, s.seen?.[s.lastQuote.listingId]?.name)) ? s.lastQuote : null;
+  const q = quotedNow ?? last;
+  const l = s.seen?.[q?.listingId];
+  if (!q?.totalCents || !l?.name) return null;
   const when = `on ${q.date} from ${q.startTime} to ${q.endTime} for ${q.guestCount} guests`;
   return {
     kind: 'confirm',
@@ -119,6 +123,15 @@ function confirmFor(text, session, turnResults) {
     yesText: `Yes, book ${l.name} ${when}.`,
     noText: `No, don't book ${l.name}.`,
   };
+}
+
+/** Does the text name this listing, in full or by its short name ("The Foundry" for "The Foundry at Fishtown")? */
+function names(text, name) {
+  const t = String(text ?? '').toLowerCase();
+  const n = String(name ?? '').trim().toLowerCase();
+  if (!t || !n) return false;
+  const short = n.split(/\s+(?:at|in|on|-|–|—)\s+|\s*[(,:]/)[0].trim();
+  return t.includes(n) || (short.length >= 6 && t.includes(short));
 }
 
 /** One card per listing. The title is exactly the listing name: the checks match cards by title. */
