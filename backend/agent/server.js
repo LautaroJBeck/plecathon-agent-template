@@ -111,13 +111,13 @@ async function takeTurn(sessionId, text) {
 async function handleWhatsApp(req, res, url) {
   if (req.method === 'GET') {
     const challenge = subscriptionChallenge(url.searchParams);
-    if (challenge === null) return json(res, 403, { error: 'forbidden', message: 'hub.verify_token does not match WHATSAPP_VERIFY_TOKEN.' });
+    if (challenge === null) return json(res, 403, { error: 'forbidden', message: 'hub.verify_token does not match WHATSAPP_WEBHOOK_VERIFY_TOKEN.' });
     res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
     return res.end(challenge);
   }
   if (req.method !== 'POST') return json(res, 405, { error: 'method_not_allowed', message: 'Use GET or POST.' });
-  if (!process.env.WHATSAPP_APP_SECRET) {
-    return json(res, 503, { error: 'not_configured', message: 'Set WHATSAPP_APP_SECRET to accept WhatsApp webhooks.' });
+  if (!process.env.META_APP_SECRET) {
+    return json(res, 503, { error: 'not_configured', message: 'Set META_APP_SECRET to accept WhatsApp webhooks.' });
   }
   const raw = await readBody(req);
   if (!raw || !validSignature(raw, req.headers['x-hub-signature-256'])) {

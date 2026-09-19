@@ -10,11 +10,11 @@
  * photo per listing card.
  *
  * Environment (see .env.example):
- *   WHATSAPP_VERIFY_TOKEN     any string you choose; the same one goes in Meta's webhook settings
- *   WHATSAPP_APP_SECRET       the Meta app secret, to check X-Hub-Signature-256
- *   WHATSAPP_ACCESS_TOKEN     a token with the whatsapp_business_messaging permission
- *   WHATSAPP_PHONE_NUMBER_ID  the connected number's id (WhatsApp > API Setup)
- *   WHATSAPP_API_URL          optional, default https://graph.facebook.com/v23.0
+ *   WHATSAPP_WEBHOOK_VERIFY_TOKEN  any string you choose; the same one goes in Meta's webhook settings
+ *   META_APP_SECRET                the Meta app secret, to check X-Hub-Signature-256
+ *   WHATSAPP_ACCESS_TOKEN          a token with the whatsapp_business_messaging permission
+ *   WHATSAPP_PHONE_NUMBER_ID       the connected number's id (WhatsApp > API Setup)
+ *   WHATSAPP_API_URL               optional, default https://graph.facebook.com/v23.0
  */
 
 import { createHmac, timingSafeEqual } from 'node:crypto';
@@ -29,13 +29,13 @@ const TEXT_ONLY = 'I can only read text messages here for now. What are you plan
 
 /** GET check: the challenge to echo back, or null when the verify token is wrong or unset. */
 export function subscriptionChallenge(params) {
-  const token = process.env.WHATSAPP_VERIFY_TOKEN;
+  const token = process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN;
   const ok = token && params.get('hub.mode') === 'subscribe' && params.get('hub.verify_token') === token;
   return ok ? params.get('hub.challenge') ?? '' : null;
 }
 
 /** True when the X-Hub-Signature-256 header is the HMAC-SHA256 of the raw body under the app secret. */
-export function validSignature(rawBody, header, secret = process.env.WHATSAPP_APP_SECRET) {
+export function validSignature(rawBody, header, secret = process.env.META_APP_SECRET) {
   if (!secret || typeof header !== 'string') return false;
   const expected = Buffer.from(`sha256=${createHmac('sha256', secret).update(rawBody).digest('hex')}`);
   const given = Buffer.from(header);

@@ -4,8 +4,8 @@ import { createHmac } from 'node:crypto';
 import { handleWebhook, incomingMessages, subscriptionChallenge, toWhatsApp, validSignature } from '../../agent/whatsapp.js';
 
 const ENV = {
-  WHATSAPP_VERIFY_TOKEN: 'verify-me',
-  WHATSAPP_APP_SECRET: 'app-secret',
+  WHATSAPP_WEBHOOK_VERIFY_TOKEN: 'verify-me',
+  META_APP_SECRET: 'app-secret',
   WHATSAPP_ACCESS_TOKEN: 'EAAtoken',
   WHATSAPP_PHONE_NUMBER_ID: '1234567890',
   WHATSAPP_API_URL: 'https://graph.test/v23.0',
@@ -52,7 +52,7 @@ test('subscription check echoes the challenge only for the right token', () => {
   const q = (token) => new URLSearchParams({ 'hub.mode': 'subscribe', 'hub.verify_token': token, 'hub.challenge': '1158201444' });
   assert.equal(subscriptionChallenge(q('verify-me')), '1158201444');
   assert.equal(subscriptionChallenge(q('nope')), null);
-  delete process.env.WHATSAPP_VERIFY_TOKEN;
+  delete process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN;
   assert.equal(subscriptionChallenge(q('')), null);
 });
 
