@@ -12,6 +12,7 @@ import { registerListings } from './shared.js';
 import { describeVibe } from './vision.js';
 import { haversineMiles, pointOf, resolveOrigin } from './geo.js';
 import { recommendFromHistory } from './recommend.js';
+import { marketInsights } from './market.js';
 
 const CATALOGUE = JSON.parse(readFileSync(new URL('../data/listings.json', import.meta.url), 'utf8'));
 const BY_ID = new Map(CATALOGUE.map((l) => [l.id, l]));
@@ -63,6 +64,15 @@ export const extraTools = [
       guests: GUESTS,
       limit: LIMIT,
     }),
+  fn('market_insights',
+    'For someone opening or running a venue: what comparable listings in PLEC\'s catalogue charge (min, median, max per pricing model), cleaning fees, capacity, instant-book share, cancellation and alcohol policies, common amenities, and the top-rated competitors. Catalogue data only.',
+    {
+      city: CITY,
+      category: { type: 'string', description: 'Exact category, e.g. rooftop, bar, loft' },
+      kind: { type: 'string', enum: ['venue', 'service'], description: 'Default venue' },
+      guests: { type: 'integer', description: 'Only comparables whose capacity range contains this' },
+      neighborhood: { type: 'string' },
+    }, ['city']),
 ];
 
 export const gatedExtraTools = []; // names of extra tools that need a user "yes" (A's gate enforces it)
@@ -77,6 +87,7 @@ export async function callExtraTool(name, args, ctx) {
       case 'find_similar_listings': return findSimilarListings(args ?? {}, session);
       case 'nearby_listings': return nearbyListings(args ?? {}, session);
       case 'recommend_from_history': return await recommendFromHistory(args ?? {}, session);
+      case 'market_insights': return marketInsights(args ?? {}, session);
       default: return { error: 'unknown_tool', message: `No tool named ${name}.` };
     }
   } catch (err) {
@@ -87,13 +98,15 @@ export async function callExtraTool(name, args, ctx) {
 
 const TAG_PROTOCOL = `Showing listings: to show listings, end your reply with a line "CARDS: id1, id2" using ids from tool results only (at most 6, best first). Cards are numbered in that order and carry the name, category, capacity and price, so keep your text short and don't repeat those details. When the user refers to a number ("I like 1 and 3"), it is the position in your last CARDS line. For photos of a listing, add a line "PHOTOS: id". For a map, fetch the listing with get_listing and add "MAP: id". Never write image URLs or markdown images yourself.`;
 
+const MARKET_SCOPE = `You also help people who are opening or running a venue understand the market: use market_insights, say the numbers come from PLEC's catalogue (not the whole market), and quote the figures it returns exactly as given.`;
+
 const EXTRA_TOOLS_GUIDE = `Vibe: when the user describes a look, mood or style, call search_by_vibe. When they pick listings by number or name, call find_similar_listings with those ids; city and headcount are in memory, so don't ask again. For "near me" or "near <place>", call nearby_listings; if it returns location_unknown, ask which neighborhood. For recommendations, "something like last time" or what they might like, call recommend_from_history. These tools never give totals: prices come from quote.`;
 
 /** Extra system-prompt text (tag protocol, extra scope, photo/location context). May be ''. */
 export function extraPromptSection(session) {
   const state = session?.state ?? {};
   const vibe = state.vibe;
-  const lines = [TAG_PROTOCOL, EXTRA_TOOLS_GUIDE];
+  const lines = [TAG_PROTOCOL, EXTRA_TOOLS_GUIDE, MARKET_SCOPE];
   if (vibe?.description || vibe?.liked?.length || vibe?.disliked?.length) {
     lines.push(`The user's vibe: ${vibe.description || 'not described'}. Liked: ${names(vibe.liked)}. Disliked: ${names(vibe.disliked)}.`);
   }
