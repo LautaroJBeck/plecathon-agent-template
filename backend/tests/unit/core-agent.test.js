@@ -161,3 +161,20 @@ test('tool results and user text land in state, and the prompt restates them', a
   assert.match(system, /Headcount: 60/);
   assert.match(system, /Sam Rivera/);
 });
+
+test('the loop never sends a gated call the user has not confirmed', async () => {
+  const session = newSession();
+  session.state.seen = { foundry: { id: 'foundry', name: 'The Foundry at Fishtown' } };
+  const args = { quoteId: 'q1', listingId: 'foundry', date: '2026-10-10', startTime: '18:00', endTime: '23:00', guestCount: 40, guestName: 'Sam', guestEmail: 'sam@x.com' };
+  const chatCompletion = scripted(withCalls(['c1', 'book', args]), final('Shall I book it?'), withCalls(['c2', 'book', args]), final('Booked.'));
+  const sent = [];
+  const callTool = async (name) => { sent.push(name); return { ref: 'BK-1001', status: 'pending_payment' }; };
+  await respond({ sessionId: 's', text: 'Book The Foundry at Fishtown Oct 10 6-11pm for 40', session }, { chatCompletion, callTool });
+  assert.deepEqual(sent, []);
+  assert.match(session.messages.find((m) => m.role === 'tool').content, /needs_confirmation/);
+  assert.equal(session.state.pending.kind, 'book');
+  await respond({ sessionId: 's', text: 'yes', session }, { chatCompletion, callTool });
+  assert.deepEqual(sent, ['book']);
+  assert.equal(session.state.pending, null);
+  assert.deepEqual(session.state.bookingRefs, ['BK-1001']);
+});

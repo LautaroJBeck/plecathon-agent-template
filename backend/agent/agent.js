@@ -10,6 +10,7 @@ import { extraTools, callExtraTool as defaultCallExtraTool } from './extras.js';
 import { toParts } from './parts.js';
 import { systemPrompt } from './prompt.js';
 import { noteUserText, remember } from './state.js';
+import { checkGate, noteUserTurn, settleGate } from './gate.js';
 
 /** Model rounds per turn. Every round costs quota, so keep it small. */
 export const MAX_ROUNDS = 5;
@@ -55,6 +56,8 @@ async function runTurn(userText, session, deps) {
   const tools = [...plecTools, ...extraTools];
   const turnResults = [];
   let text = '';
+  const prevAssistantText = lastAssistantText(session.messages.slice(0, -1));
+  noteUserTurn(session, userText);
   noteUserText(session, userText);
 
   for (let round = 0; round < MAX_ROUNDS; round += 1) {
@@ -71,7 +74,7 @@ async function runTurn(userText, session, deps) {
 
     session.messages.push(reply.message);
     const calls = reply.toolCalls.map((call) => ({ call, args: parseToolArguments(call.argumentsJson) }));
-    const results = await Promise.all(calls.map(({ call, args }) => runTool(call.name, args, { session, userText }, deps)));
+    const results = await Promise.all(calls.map(({ call, args }) => runTool(call.name, args, { session, userText, prevAssistantText }, deps)));
     calls.forEach(({ call, args }, i) => {
       turnResults.push({ name: call.name, args, result: results[i] });
       remember(session, call.name, args, results[i]);
@@ -84,15 +87,34 @@ async function runTurn(userText, session, deps) {
   return toParts(text, session, turnResults);
 }
 
-/** One tool call: plec tools to the sandbox, anything else to B's extras. Never throws. */
+/**
+ * One tool call: through the confirmation gate, then plec tools to the
+ * sandbox and anything else to B's extras. Never throws. The gate decision is
+ * made before the first await, so parallel calls are gated in call order.
+ */
 async function runTool(name, args, ctx, deps) {
+  const gate = checkGate(name, args, ctx);
+  if (!gate.allow) return gate.result;
+  let result;
   try {
-    if (PLEC_TOOL_NAMES.has(name)) return await (deps.callTool ?? defaultCallTool)(name, args);
-    return await (deps.callExtraTool ?? defaultCallExtraTool)(name, args, ctx);
+    result = PLEC_TOOL_NAMES.has(name)
+      ? await (deps.callTool ?? defaultCallTool)(name, gate.args)
+      : await (deps.callExtraTool ?? defaultCallExtraTool)(name, gate.args, { session: ctx.session, userText: ctx.userText });
   } catch (err) {
     console.error(`[tool ${name}]`, err);
-    return { error: 'tool_failed', message: `The ${name} lookup failed on our side.` };
+    result = { error: 'tool_failed', message: `The ${name} call failed on our side.` };
   }
+  settleGate(ctx.session, name, result);
+  return result;
+}
+
+/** The last thing the assistant said in words, for the gate's "did they see it" check. */
+function lastAssistantText(messages) {
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const m = messages[i];
+    if (m.role === 'assistant' && typeof m.content === 'string' && m.content.trim()) return m.content;
+  }
+  return '';
 }
 
 /**
