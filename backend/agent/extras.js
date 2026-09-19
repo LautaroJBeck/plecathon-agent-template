@@ -1,19 +1,240 @@
 /**
- * Extra tools and prompt text (PRD B). Step 0 stub: the shape A codes against
- * (docs/prd, section 3.3). B replaces the bodies, never the signatures.
+ * Extra tools and prompt text (PRD B). A imports extraTools, gatedExtraTools,
+ * callExtraTool and extraPromptSection (docs/prd, section 3.3).
+ *
+ * Also home to the catalogue helpers the extras share: filters, the vibe and
+ * similarity scorers, and compact hits. Everything here reads the offline
+ * catalogue (backend/data/listings.json), so it costs no sandbox calls.
  */
 
-export const extraTools = []; // OpenAI-style function tools, same shape as plec.js `tools`
+import { readFileSync } from 'node:fs';
+import { registerListings } from './shared.js';
+
+const CATALOGUE = JSON.parse(readFileSync(new URL('../data/listings.json', import.meta.url), 'utf8'));
+const BY_ID = new Map(CATALOGUE.map((l) => [l.id, l]));
+
+const CITY = { type: 'string', enum: ['Philadelphia', 'New York', 'Washington'] };
+const GUESTS = { type: 'integer', description: 'Headcount; only listings whose capacity range contains it. Defaults to the headcount in memory.' };
+const LIMIT = { type: 'integer', minimum: 1, maximum: 8 };
+const fn = (name, description, properties, required = []) => ({
+  type: 'function',
+  function: { name, description, parameters: { type: 'object', properties, required } },
+});
+
+export const extraTools = [
+  fn('search_by_vibe',
+    "Find listings matching a described vibe, look or mood, or the vibe read from the user's photo. Pass keywords in catalogue words: setting (rooftop, garden, loft, warehouse, waterfront, courtyard), style (industrial, historic, candlelit, skyline, sunset, intimate, casual, formal) and features (dance floor, fireplace, stage, live music). Returns hits with matchedOn. Never a price total: use quote for that.",
+    {
+      vibe: { type: 'string', description: "The vibe in one sentence, in the user's words" },
+      keywords: { type: 'array', items: { type: 'string' } },
+      city: CITY,
+      guests: GUESTS,
+      kind: { type: 'string', enum: ['venue', 'service'], description: 'Default venue' },
+      category: { type: 'string', description: 'Exact category, e.g. loft, rooftop, garden' },
+      limit: LIMIT,
+    }, ['vibe', 'keywords']),
+  fn('find_similar_listings',
+    'More listings like the ones the user picked ("I like 1 and 3"). Pass the picked ids (from your last CARDS line) as likedIds, and any rejected ones as dislikedIds. City and headcount default to memory. Never a price total: use quote for that.',
+    {
+      likedIds: { type: 'array', items: { type: 'string' } },
+      dislikedIds: { type: 'array', items: { type: 'string' } },
+      city: CITY,
+      guests: GUESTS,
+      limit: LIMIT,
+    }, ['likedIds']),
+];
+
 export const gatedExtraTools = []; // names of extra tools that need a user "yes" (A's gate enforces it)
 
 /** ctx = { session, userText }. Never throws; on failure returns { error, message }. */
 export async function callExtraTool(name, args, ctx) {
-  return { error: 'unknown_tool', message: `No tool named ${name}.` };
+  const session = ctx?.session ?? { state: {} };
+  session.state ??= {};
+  try {
+    switch (name) {
+      case 'search_by_vibe': return searchByVibe(args ?? {}, session);
+      case 'find_similar_listings': return findSimilarListings(args ?? {}, session);
+      default: return { error: 'unknown_tool', message: `No tool named ${name}.` };
+    }
+  } catch (err) {
+    console.error(`[extra ${name}]`, err);
+    return { error: 'tool_failed', message: `${name} failed: ${err?.message ?? err}` };
+  }
 }
 
 const TAG_PROTOCOL = `Showing listings: to show listings, end your reply with a line "CARDS: id1, id2" using ids from tool results only (at most 6, best first). Cards are numbered in that order and carry the name, category, capacity and price, so keep your text short and don't repeat those details. When the user refers to a number ("I like 1 and 3"), it is the position in your last CARDS line. For photos of a listing, add a line "PHOTOS: id". For a map, fetch the listing with get_listing and add "MAP: id". Never write image URLs or markdown images yourself.`;
 
+const EXTRA_TOOLS_GUIDE = `Vibe: when the user describes a look, mood or style, call search_by_vibe. When they pick listings by number or name, call find_similar_listings with those ids; city and headcount are in memory, so don't ask again. These tools never give totals: prices come from quote.`;
+
 /** Extra system-prompt text (tag protocol, extra scope, photo/location context). May be ''. */
 export function extraPromptSection(session) {
-  return TAG_PROTOCOL;
+  const vibe = session?.state?.vibe;
+  const lines = [TAG_PROTOCOL, EXTRA_TOOLS_GUIDE];
+  if (vibe?.description || vibe?.liked?.length || vibe?.disliked?.length) {
+    lines.push(`The user's vibe: ${vibe.description || 'not described'}. Liked: ${names(vibe.liked)}. Disliked: ${names(vibe.disliked)}.`);
+  }
+  return lines.join('\n');
+}
+
+const names = (ids) => (ids?.length ? ids.map((id) => BY_ID.get(id)?.name ?? id).join(', ') : 'none');
+
+// ---------------------------------------------------------------------------
+// Catalogue helpers, shared by the other extras (geo, recommend, market).
+
+/** The whole offline catalogue. */
+export function catalogue() {
+  return CATALOGUE;
+}
+
+/** One catalogue listing by id, or by exact name (case-insensitive). */
+export function listingByRef(ref) {
+  const key = String(ref ?? '').trim();
+  return BY_ID.get(key) ?? BY_ID.get(key.toLowerCase()) ?? CATALOGUE.find((l) => l.name.toLowerCase() === key.toLowerCase());
+}
+
+/** Catalogue listings passing the city (prefix), kind, category, neighborhood and headcount filters, minus `exclude` ids.
+ *  A listing without a capacity passes only when no headcount is given. */
+export function filterCatalogue({ city, kind, category, neighborhood, guests } = {}, exclude = []) {
+  const skip = new Set(exclude);
+  const lc = (s) => String(s ?? '').trim().toLowerCase();
+  const g = Number(guests);
+  return CATALOGUE.filter((l) =>
+    !skip.has(l.id)
+    && (!city || lc(l.city).startsWith(lc(city)))
+    && (!kind || l.kind === kind)
+    && (!category || lc(l.category) === lc(category))
+    && (!neighborhood || lc(l.neighborhood) === lc(neighborhood))
+    && (!guests || !Number.isFinite(g) || (l.capacity != null && g >= (l.capacity.min ?? 0) && g <= l.capacity.max)));
+}
+
+const HIT_FIELDS = ['id', 'name', 'kind', 'category', 'city', 'neighborhood', 'capacity', 'pricing', 'rating', 'instantBook', 'photoUrls', 'tags'];
+
+/** A search-hit-shaped copy of a listing. Never carries the description (host text, possibly hostile). */
+export function compactHit(listing, extra = {}) {
+  return { ...Object.fromEntries(HIT_FIELDS.map((k) => [k, listing[k]])), ...extra };
+}
+
+/** Sort scored entries ({ l, score }) best first, rating then review count breaking ties. */
+export function rank(scored, limit) {
+  return scored
+    .sort((a, b) => b.score - a.score || (b.l.rating ?? 0) - (a.l.rating ?? 0) || (b.l.reviewCount ?? 0) - (a.l.reviewCount ?? 0))
+    .slice(0, clampLimit(limit));
+}
+
+export const clampLimit = (n, fallback = 6) => Math.min(8, Math.max(1, Math.round(Number(n)) || fallback));
+
+const STOP = new Set(('a an and are as at be but by for from in into is it of on or our so that the their this to with '
+  + 'we you your my i me very really some something like want looking need feel feeling vibe vibes style kind sort '
+  + 'space place venue event party people guest').split(' '));
+const stem = (w) => (w.length > 3 && w.endsWith('s') && !w.endsWith('ss') ? w.slice(0, -1) : w);
+const tokens = (text) => String(text ?? '').toLowerCase().split(/[^a-z0-9]+/).map(stem).filter((w) => w && !STOP.has(w));
+
+const VIBE_WEIGHTS = [['tags', 3], ['category', 3], ['amenities', 2], ['neighborhood', 1]];
+
+/** Keyword overlap: tags x3, category x3, amenities x2, neighborhood x1, description words x1.
+ *  matchedOn names the matched tags, category, amenities and neighborhood, never description words. */
+export function vibeScore(listing, words) {
+  let score = 0;
+  const matchedOn = new Set();
+  for (const [field, weight] of VIBE_WEIGHTS) {
+    for (const phrase of [listing[field] ?? []].flat()) {
+      if (tokens(phrase).some((t) => words.has(t))) {
+        score += weight;
+        matchedOn.add(phrase);
+      }
+    }
+  }
+  score += new Set(tokens(listing.description).filter((t) => words.has(t))).size;
+  return { score, matchedOn: [...matchedOn] };
+}
+
+// "More like these": a shared category (the same kind of space) outweighs shared tags,
+// which are mostly event types (wedding, birthday) that any big room carries.
+const SIMILAR_WEIGHTS = { category: 8, tags: 3, amenities: 2, neighborhood: 1 };
+
+function features(listing) {
+  return Object.entries(SIMILAR_WEIGHTS).flatMap(([field, weight]) =>
+    [listing[field] ?? []].flat().map((value) => ({ key: `${field}:${String(value).toLowerCase()}`, value, weight })));
+}
+
+/** Weighted feature profile of listings: [{ listing, weight }] -> Map(feature -> weight). */
+export function profileOf(weighted) {
+  const profile = new Map();
+  for (const { listing, weight = 1 } of weighted) {
+    for (const f of features(listing)) profile.set(f.key, (profile.get(f.key) ?? 0) + f.weight * weight);
+  }
+  return profile;
+}
+
+/** How well a listing matches a profile, and which of its category/tags/amenities it shares. */
+export function similarity(listing, profile) {
+  let score = 0;
+  const shared = new Set();
+  for (const f of features(listing)) {
+    if (!profile.has(f.key)) continue;
+    score += profile.get(f.key);
+    shared.add(f.value);
+  }
+  return { score, shared: [...shared] };
+}
+
+function vibeOf(state) {
+  state.vibe ??= { description: '', keywords: [], liked: [], disliked: [], fromImage: false };
+  state.vibe.liked ??= [];
+  state.vibe.disliked ??= [];
+  return state.vibe;
+}
+
+// ---------------------------------------------------------------------------
+// B3: vibe search and "more like these".
+
+function searchByVibe(args, session) {
+  const state = session.state;
+  const vibe = vibeOf(state);
+  const keywords = [args.keywords ?? []].flat().map(String);
+  const words = new Set(tokens([args.vibe, ...keywords].join(' ')));
+  const pool = filterCatalogue({
+    city: args.city ?? state.city,
+    kind: args.kind ?? 'venue',
+    category: args.category,
+    guests: args.guests ?? state.guestCount,
+  }, vibe.disliked);
+  const scored = pool.map((l) => ({ l, ...vibeScore(l, words) }));
+  const matched = scored.filter((s) => s.score > 0);
+  const hits = rank(matched.length ? matched : scored, args.limit).map(({ l, matchedOn }) => compactHit(l, { matchedOn }));
+
+  if (args.vibe) vibe.description = String(args.vibe);
+  if (keywords.length) vibe.keywords = keywords;
+  registerListings(session, hits, { asResults: true });
+  if (!hits.length) return { results: [], message: 'No listings fit these filters.' };
+  return matched.length ? { results: hits } : { results: hits, note: 'Nothing matched those words; these are the top-rated listings that fit.' };
+}
+
+function findSimilarListings(args, session) {
+  const state = session.state;
+  const vibe = vibeOf(state);
+  const liked = [args.likedIds ?? []].flat().map(listingByRef).filter(Boolean);
+  const disliked = [args.dislikedIds ?? []].flat().map(listingByRef).filter(Boolean);
+  const likedIds = liked.map((l) => l.id);
+  const dislikedIds = disliked.map((l) => l.id);
+  vibe.liked = [...new Set([...vibe.liked.filter((id) => !dislikedIds.includes(id)), ...likedIds])];
+  vibe.disliked = [...new Set([...vibe.disliked.filter((id) => !likedIds.includes(id)), ...dislikedIds])];
+  if (!liked.length) return { error: 'unknown_ids', message: 'Pass listing ids from the last results (your CARDS line) as likedIds.' };
+
+  const cities = new Set(liked.map((l) => l.city));
+  const kinds = new Set(liked.map((l) => l.kind));
+  const profile = profileOf(liked.map((listing) => ({ listing })));
+  const pool = filterCatalogue({
+    city: args.city ?? state.city ?? (cities.size === 1 ? [...cities][0] : undefined),
+    guests: args.guests ?? state.guestCount,
+  }, [...vibe.liked, ...vibe.disliked]).filter((l) => kinds.has(l.kind));
+  const scored = pool.map((l) => {
+    const { score, shared } = similarity(l, profile);
+    return { l, score, shared };
+  }).filter((s) => s.score > 0);
+  const hits = rank(scored, args.limit).map(({ l, shared }) => compactHit(l, { matchedOn: shared }));
+
+  registerListings(session, hits, { asResults: true });
+  const similarTo = liked.map((l) => l.name);
+  return hits.length ? { similarTo, results: hits } : { similarTo, results: [], message: 'Nothing else close fits these filters.' };
 }
