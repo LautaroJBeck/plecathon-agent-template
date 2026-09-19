@@ -7,6 +7,8 @@
  * catalogue (backend/data/listings.json), so it costs no sandbox calls.
  */
 
+// geo.js, recommend.js and market.js import the catalogue helpers below back from this
+// module. Only function declarations cross that cycle, so load order does not matter.
 import { readFileSync } from 'node:fs';
 import { registerListings } from './shared.js';
 import { describeVibe } from './vision.js';
