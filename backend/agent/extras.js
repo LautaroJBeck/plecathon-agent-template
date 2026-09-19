@@ -13,6 +13,7 @@ import { describeVibe } from './vision.js';
 import { haversineMiles, pointOf, resolveOrigin } from './geo.js';
 import { recommendFromHistory } from './recommend.js';
 import { marketInsights } from './market.js';
+import { draftEmail, sendEmail } from './email.js';
 
 const CATALOGUE = JSON.parse(readFileSync(new URL('../data/listings.json', import.meta.url), 'utf8'));
 const BY_ID = new Map(CATALOGUE.map((l) => [l.id, l]));
@@ -73,9 +74,23 @@ export const extraTools = [
       guests: { type: 'integer', description: 'Only comparables whose capacity range contains this' },
       neighborhood: { type: 'string' },
     }, ['city']),
+  fn('draft_email',
+    'Draft a plain-text email (share options, announce a booking) and get a link that opens it in the user\'s mail app. Nothing is sent.',
+    {
+      to: { type: 'array', items: { type: 'string' }, description: '1 to 10 email addresses' },
+      subject: { type: 'string', description: 'At most 150 characters' },
+      body: { type: 'string', description: 'Plain text, at most 2,000 characters, facts from tool results only' },
+      purpose: { type: 'string', enum: ['share_options', 'booking_announcement', 'other'] },
+    }, ['to', 'subject', 'body', 'purpose']),
+  fn('send_email',
+    'Send the drafted email. Call ONLY after the user saw the recipients and subject and said yes. Pass the same recipients and subject as the draft.',
+    {
+      to: { type: 'array', items: { type: 'string' } },
+      subject: { type: 'string' },
+    }, ['to', 'subject']),
 ];
 
-export const gatedExtraTools = []; // names of extra tools that need a user "yes" (A's gate enforces it)
+export const gatedExtraTools = ['send_email']; // extra tools that need a user "yes" (A's gate enforces it)
 
 /** ctx = { session, userText }. Never throws; on failure returns { error, message }. */
 export async function callExtraTool(name, args, ctx) {
@@ -88,6 +103,8 @@ export async function callExtraTool(name, args, ctx) {
       case 'nearby_listings': return nearbyListings(args ?? {}, session);
       case 'recommend_from_history': return await recommendFromHistory(args ?? {}, session);
       case 'market_insights': return marketInsights(args ?? {}, session);
+      case 'draft_email': return draftEmail(args ?? {}, session);
+      case 'send_email': return await sendEmail(args ?? {}, session);
       default: return { error: 'unknown_tool', message: `No tool named ${name}.` };
     }
   } catch (err) {
@@ -96,17 +113,19 @@ export async function callExtraTool(name, args, ctx) {
   }
 }
 
-const TAG_PROTOCOL = `Showing listings: to show listings, end your reply with a line "CARDS: id1, id2" using ids from tool results only (at most 6, best first). Cards are numbered in that order and carry the name, category, capacity and price, so keep your text short and don't repeat those details. When the user refers to a number ("I like 1 and 3"), it is the position in your last CARDS line. For photos of a listing, add a line "PHOTOS: id". For a map, fetch the listing with get_listing and add "MAP: id". Never write image URLs or markdown images yourself.`;
+const TAG_PROTOCOL = `To show listings, end your reply with a line "CARDS: id1, id2" (ids from tool results only, at most 6, best first). Cards are numbered in that order and show name, category, capacity and price, so keep your text short. A number the user mentions ("I like 1 and 3") is a position in your last CARDS line. For photos add "PHOTOS: id"; for a map, get_listing it and add "MAP: id". Never write image URLs or markdown images.`;
 
-const MARKET_SCOPE = `You also help people who are opening or running a venue understand the market: use market_insights, say the numbers come from PLEC's catalogue (not the whole market), and quote the figures it returns exactly as given.`;
+const MARKET_SCOPE = `You also help people opening or running a venue understand the market: use market_insights, say the figures come from PLEC's catalogue (not the whole market), and quote them as given.`;
 
-const EXTRA_TOOLS_GUIDE = `Vibe: when the user describes a look, mood or style, call search_by_vibe. When they pick listings by number or name, call find_similar_listings with those ids; city and headcount are in memory, so don't ask again. For "near me" or "near <place>", call nearby_listings; if it returns location_unknown, ask which neighborhood. For recommendations, "something like last time" or what they might like, call recommend_from_history. These tools never give totals: prices come from quote.`;
+const EMAIL_RULES = `Email: draft_email with facts from tool results only (listing name, date, times, headcount, total, booking ref), never listing descriptions, and no payment link in emails to others unless asked. Show the recipients and subject and ask before send_email; never say it was sent unless it returned sent: true. If sending is off, offer the draft link.`;
+
+const EXTRA_TOOLS_GUIDE = `Extra tools: search_by_vibe for a described look or mood; find_similar_listings when the user picks listings (city and headcount are in memory, don't ask again); nearby_listings for "near me" or "near <place>" (on location_unknown, ask for a neighborhood); recommend_from_history for recommendations or "something like last time". None of them gives totals: prices come from quote.`;
 
 /** Extra system-prompt text (tag protocol, extra scope, photo/location context). May be ''. */
 export function extraPromptSection(session) {
   const state = session?.state ?? {};
   const vibe = state.vibe;
-  const lines = [TAG_PROTOCOL, EXTRA_TOOLS_GUIDE, MARKET_SCOPE];
+  const lines = [TAG_PROTOCOL, EXTRA_TOOLS_GUIDE, MARKET_SCOPE, EMAIL_RULES];
   if (vibe?.description || vibe?.liked?.length || vibe?.disliked?.length) {
     lines.push(`The user's vibe: ${vibe.description || 'not described'}. Liked: ${names(vibe.liked)}. Disliked: ${names(vibe.disliked)}.`);
   }
