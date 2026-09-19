@@ -464,12 +464,16 @@ The emulated Checkout page, and the only sandbox routes that take **no key**:
 a real Stripe link is opened by the guest in a browser, which never holds
 your credentials. The unguessable session id in the path is what protects it.
 
-`GET` renders a page showing the booking and a Pay button. The button posts
-to the same path, which marks the payment `paid` and the booking
-`confirmed`, then shows a receipt. No card details are asked for and no money
-moves.
+`GET /pay/:sessionId` renders a page showing the booking and a Pay button.
+The button is a link to `GET /pay/:sessionId/confirm`, which marks the
+payment `paid` and the booking `confirmed`, then redirects back to the
+receipt. No card details are asked for and no money moves.
 
-**Do not call `POST /pay/:sessionId` from your agent.** Paying is the guest's
+**Do not prefetch or crawl the links your agent sends.** `/confirm` is the
+guest pressing Pay. If your chat UI preloads every URL it renders, it will
+pay the booking for them.
+
+**Do not call the pay routes from your agent.** Paying is the guest's
 action, and it is the one real checkpoint in this flow. An agent that pays on
 the user's behalf, or that reports a booking as paid when it is not, is doing
 the single worst thing an agent can do with someone's money. The hidden tests
