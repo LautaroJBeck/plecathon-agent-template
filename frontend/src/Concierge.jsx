@@ -276,7 +276,7 @@ export function ConciergeDock({ concierge: c, onOpen }) {
           <strong>PLEC Concierge</strong>
           <span>AI booking assistant, replies in seconds</span>
         </div>
-        <button className="icon-btn" onClick={c.reset} title="Start over" aria-label="Start a new conversation"><Icon name="refresh" /></button>
+        <button className="icon-btn" onClick={c.reset} data-tip="Start over" aria-label="Start a new conversation"><Icon name="refresh" /></button>
         <button className="icon-btn" onClick={() => c.setOpen(false)} aria-label="Minimize chat"><Icon name="minus" /></button>
       </header>
 
