@@ -60,7 +60,7 @@ async function runTurn(userText, session, deps) {
     const messages = [{ role: 'system', content: systemPrompt(session) }, ...windowMessages(session.messages, HISTORY_WINDOW)];
     const roundStart = now();
     const reply = await chatCompletion(messages, { tools, temperature: TEMPERATURE, ...(forceFinal ? { toolChoice: 'none' } : {}) });
-    console.log(`[agent] round ${round + 1}${forceFinal ? ' (forced)' : ''} ${now() - roundStart}ms ${reply.toolCalls.map((c) => `${c.name}${c.argumentsJson}`).join(' ') || 'answer'}`);
+    console.log(`[agent] ${reply.raw?.model ?? ""} round ${round + 1}${forceFinal ? ' (forced)' : ''} ${now() - roundStart}ms ${reply.toolCalls.map((c) => `${c.name}${c.argumentsJson}`).join(' ') || 'answer'}`);
 
     if (forceFinal || reply.toolCalls.length === 0) {
       text = reply.text || (forceFinal ? LOST_TEXT : '');
