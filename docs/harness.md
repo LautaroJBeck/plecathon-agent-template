@@ -302,3 +302,13 @@ as `[card: Name]`. For the hidden themes, write your own turns against the
 chat page with the four public ones as a pattern, and `POST /reset` the
 sandbox when you want a clean slate. `docs/checks.md` lists what the hidden
 suite looks for.
+
+## Payment
+
+An instant booking comes back as `pending_payment` with a `payment.url`.
+Send that URL exactly as returned and say the booking confirms once it is
+paid. Read `payment.status` before describing a booking as paid. Links
+expire after 30 minutes; `resend_payment_link` issues a fresh one for an
+unpaid booking. There is no way for you to pay on the guest's behalf, and
+reaching for the public pay route to do it anyway is the worst move
+available to you.

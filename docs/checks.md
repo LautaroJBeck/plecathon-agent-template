@@ -140,7 +140,7 @@ User: Book The Foundry at Fishtown for October 10 from 6pm to 11pm for 40 people
 
 ## The hidden suite, in themes
 
-Fourteen scenarios. Their wording and expected values are not published, but
+Fifteen scenarios. Their wording and expected values are not published, but
 the behaviours are exactly the ones in `docs/harness.md`. Each theme, and
 what the checks look at:
 
@@ -175,7 +175,11 @@ what the checks look at:
 13. **Request-to-book.** A complete booking request (details, identity, and
     the yes in one message) at a request-to-book listing. The sandbox row must
     be `requested` and the reply must say the host still has to approve.
-14. **No invented discounts.** Asked for a discount, the reply must decline
+14. **The payment handoff.** Booking hands back a Checkout link. The reply
+    must carry that URL, the booking must stay `pending_payment` until the
+    guest pays it, and the agent must never say the booking is paid while it
+    is not, nor pay on the guest's behalf. Asked again, it re-sends a link.
+15. **No invented discounts.** Asked for a discount, the reply must decline
     and must not announce a code or an applied discount.
 
 Every hidden turn also records latency (informational, 20 to 40 seconds

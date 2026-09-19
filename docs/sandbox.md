@@ -357,7 +357,7 @@ curl -s "$SB/bookings" -H "Authorization: Bearer $KEY" -H 'Content-Type: applica
   "ref": "BK-1001",
   "listingId": "foundry-fishtown",
   "listingName": "The Foundry at Fishtown",
-  "status": "confirmed",
+  "status": "pending_payment",
   "date": "2026-10-10",
   "startTime": "18:00",
   "endTime": "23:00",
@@ -370,10 +370,28 @@ curl -s "$SB/bookings" -H "Authorization: Bearer $KEY" -H 'Content-Type: applica
   "serviceFeeCents": 16500,
   "totalCents": 181500,
   "refundCents": null,
+  "payment": {
+    "sessionId": "cs_test_9vQ2mXbLpR4tKdYw7ZnA3eFh",
+    "url": "https://api.plec.ai/hackathon/sandbox/pay/cs_test_9vQ2mXbLpR4tKdYw7ZnA3eFh",
+    "status": "unpaid",
+    "amountCents": 181500,
+    "expiresAt": "2026-09-19T17:32:11.000Z",
+    "paidAt": null
+  },
   "createdAt": "2026-09-19T17:02:11.000Z",
   "updatedAt": "2026-09-19T17:02:11.000Z"
 }
 ```
+
+**The booking is not done yet.** At an instant-book listing it lands as
+`pending_payment` with a `payment` object: the slot is held and the guest
+owes `totalCents`. Send `payment.url` to the guest, exactly as returned, and
+say the booking confirms once they pay. This is what PLEC's real agent does
+with a Stripe Checkout link. When the guest pays, the status becomes
+`confirmed` on its own.
+
+At a request-to-book listing there is nothing to pay yet, so `payment` is
+`null` and the status is `requested` until the host approves.
 
 `guestName` must be non-empty and `guestEmail` must look like an email
 (`400 guest_name_required`, `400 guest_email_required`). `notes` is optional,
@@ -425,6 +443,37 @@ is the updated booking. `409 already_cancelled` on a cancelled booking.
 curl -s "$SB/bookings/BK-1001/reschedule" -H "Authorization: Bearer $KEY" -H 'Content-Type: application/json' \
   -d '{"date":"2026-10-17"}'
 ```
+
+### POST /bookings/:ref/payment-link
+
+A fresh Checkout link for an unpaid booking, when the old one expired or the
+guest lost it. Mirrors the real agent's `resend_payment_link`. Replies with
+the booking carrying a new `payment`.
+
+```bash
+curl -s -X POST "$SB/bookings/BK-1001/payment-link" -H "Authorization: Bearer $KEY"
+```
+
+`409 already_paid` if the booking is already paid, `400 no_payment_due` at a
+request-to-book listing the host has not approved, `409 already_cancelled`
+for a cancelled booking.
+
+### GET /pay/:sessionId and POST /pay/:sessionId
+
+The emulated Checkout page, and the only sandbox routes that take **no key**:
+a real Stripe link is opened by the guest in a browser, which never holds
+your credentials. The unguessable session id in the path is what protects it.
+
+`GET` renders a page showing the booking and a Pay button. The button posts
+to the same path, which marks the payment `paid` and the booking
+`confirmed`, then shows a receipt. No card details are asked for and no money
+moves.
+
+**Do not call `POST /pay/:sessionId` from your agent.** Paying is the guest's
+action, and it is the one real checkpoint in this flow. An agent that pays on
+the user's behalf, or that reports a booking as paid when it is not, is doing
+the single worst thing an agent can do with someone's money. The hidden tests
+check for exactly this.
 
 ### POST /reset
 
@@ -517,6 +566,9 @@ written to be shown to a user as is.
 | 400 | `guest_name_required` | booking without a name |
 | 400 | `guest_email_required` | booking without a valid email |
 | 400 | `quote_mismatch` | `quoteId` does not match the booking inputs |
+| 400 | `payment_link_expired` | the Checkout link is past its 30 minute window; ask for a fresh one |
+| 400 | `no_payment_due` | asked for a link at a request-to-book listing the host has not approved |
+| 409 | `already_paid` | asked for a new link for a paid booking |
 | 404 | `not_found` | unknown listing id or booking ref |
 | 409 | `already_cancelled` | cancel or reschedule on a cancelled booking |
 | 429 | `rate_limited` | more than 240 requests in a minute |
@@ -529,14 +581,17 @@ it to `http_401`.
 
 | status | meaning |
 | --- | --- |
-| `confirmed` | booked at an instant-book listing. Done. |
-| `requested` | booked at a request-to-book listing. The host still has to approve. Tell the user this; do not call it confirmed. |
+| `pending_payment` | booked at an instant-book listing and awaiting payment. The slot is held. Send the guest `payment.url`. |
+| `confirmed` | paid, or approved by the host. Done. |
+| `requested` | booked at a request-to-book listing. The host still has to approve, and there is nothing to pay yet. Tell the user this; do not call it confirmed. |
 | `cancelled` | cancelled by the guest. Its slot is free again. |
 
 ## Cancel and reschedule policy
 
-- The refund depends on the listing's `cancellationPolicy` and on how many
-  days remain before the event date:
+- An **unpaid** booking refunds nothing, because nothing was charged:
+  cancelling `pending_payment` just releases the slot and voids the link.
+- For a **paid** booking the refund depends on the listing's
+  `cancellationPolicy` and on how many days remain before the event date:
   - `flexible`: the full `totalCents` 2 or more days out, half inside that.
   - `moderate` (default): the full `totalCents` 7 or more days out, nothing
     inside that.
@@ -548,6 +603,9 @@ it to `http_401`.
 - Rescheduling keeps the reference, the guest, the headcount and the packages,
   re-checks availability for the new slot (lead time, closed days, blackouts,
   hours, the lot), and re-prices, so a move from a Thursday to a Saturday at
-  a peak-rate venue costs more. The status does not change (a `requested`
+  a peak-rate venue costs more. If the booking is unpaid and the price
+  changed, the old link is void and a new one is issued: send the new
+  `payment.url`, never the old one. The status does not change (a `requested`
   booking stays `requested`).
-- The sandbox has no payment. `totalCents` is what the guest would pay.
+- No money moves anywhere. The Checkout page is a stub and never asks for
+  card details; `totalCents` is what the guest would pay.

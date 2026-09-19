@@ -199,6 +199,13 @@ export function createPlecClient(options = {}) {
     cancelBooking: (ref) => request('POST', `/bookings/${encodeURIComponent(ref)}/cancel`),
 
     /**
+     * A fresh Checkout link for an unpaid booking. There is deliberately no
+     * `pay()` here: paying is the guest's action, not the agent's.
+     */
+    refreshPaymentLink: (ref) =>
+      request('POST', `/bookings/${encodeURIComponent(ref)}/payment-link`),
+
+    /**
      * Move a booking. Availability is re-checked and the price re-computed.
      * @param {{ date?: string, startTime?: string, endTime?: string }} changes
      * @returns {Promise<Booking>}
@@ -283,7 +290,8 @@ export const tools = [
     type: 'function',
     function: {
       name: 'book',
-      description: 'Create the booking. Call ONLY after the user has seen the quoted total and explicitly said yes, and only with their name and email. Pass the quoteId and the identical inputs from the quote.',
+      description:
+        'Create the booking. Call ONLY after the user has seen the quoted total and explicitly said yes, and only with their name and email. Pass the quoteId and the identical inputs from the quote. At an instant-book listing the booking comes back as pending_payment with a payment.url: send that URL to the guest verbatim and tell them it confirms once they pay. At a request-to-book listing it comes back as requested with no payment, because the host has to approve first.',
       parameters: {
         type: 'object',
         properties: {
@@ -323,6 +331,15 @@ export const tools = [
     function: {
       name: 'cancel_booking',
       description: 'Cancel a booking. Irreversible. Call ONLY after the user explicitly confirmed the cancellation in this conversation. Returns refundCents.',
+      parameters: { type: 'object', properties: { ref: { type: 'string' } }, required: ['ref'] },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'resend_payment_link',
+      description:
+        "Get a fresh payment link for an unpaid booking, when the old one expired or the guest lost it. Returns the booking with a new payment.url. Send that URL to the guest verbatim. There is no way to pay on the guest's behalf, and you must never claim a booking is paid: read payment.status.",
       parameters: { type: 'object', properties: { ref: { type: 'string' } }, required: ['ref'] },
     },
   },
@@ -369,6 +386,8 @@ export async function callTool(name, args, client = plec) {
         return await client.getBooking(args.ref);
       case 'cancel_booking':
         return await client.cancelBooking(args.ref);
+      case 'resend_payment_link':
+        return await client.refreshPaymentLink(args.ref);
       case 'reschedule_booking': {
         const { ref, ...changes } = args;
         return await client.rescheduleBooking(ref, changes);

@@ -105,6 +105,10 @@ The criterion is interaction quality. In practice that means the agent:
   quoted total matches the sandbox to the cent.
 - **Confirms before it acts.** No booking, cancellation or reschedule without
   the user having seen what will happen and said yes.
+- **Hands over payment honestly.** A booking comes back with a Checkout link
+  and stays unpaid until the guest pays it. The agent sends the link, says
+  the booking confirms on payment, and never claims money changed hands or
+  tries to pay on the guest's behalf.
 - **Collects a name and an email before booking.** And does not ask twice.
 - **Remembers the conversation.** City and headcount given once are used on
   every later turn.
@@ -119,7 +123,7 @@ The criterion is interaction quality. In practice that means the agent:
   links where they help. Text stays short.
 
 Two test suites measure this. The **visible** suite is four scenarios you can
-run any time with `npm test`. The **hidden** suite is fourteen more, covering
+run any time with `npm test`. The **hidden** suite is fifteen more, covering
 the behaviours above; its themes are in [docs/checks.md](docs/checks.md).
 After submissions close, staff run the hidden suite against your public agent
 URL from the admin dashboard, read the transcripts, and score each team.
