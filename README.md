@@ -12,13 +12,14 @@ starting point. Clone it, keep the contract, replace the brain.
 ## What you get in this repo
 
 ```
-backend/agent/server.js        HTTP server for the contract (API only). Zero dependencies.
+backend/agent/server.js        HTTP server for the contract, plus read-only /api/* sandbox routes for the site. Zero dependencies.
 backend/agent/agent.js         The brain. A working echo with TODO markers where your harness goes.
 backend/agent/plec.js          Sandbox client, one function per endpoint, plus tool definitions for a model.
 backend/agent/llm.js           chatCompletion() against any OpenAI-compatible endpoint.
 backend/agent/session.js       In-memory per-session store.
-frontend/server.js             Serves the chat page and forwards /agent/* to the backend.
-frontend/index.html            PLEC's chat UI in one file. Renders every part kind.
+frontend/src/                  React replica of the plec-it.com landing page, with the Concierge (your agent) built in.
+frontend/vite.config.js        Dev server; forwards /agent/* and /api/* to the backend.
+frontend/public/chat.html      PLEC's plain chat UI in one file, at /chat.html. Renders every part kind.
 backend/python/echo_server.py  The same contract in stdlib Python, for teams that prefer it.
 backend/tests/run.js           Runs the public scenarios against your agent and prints a report.
 docs/contract.md               The agent HTTP contract, with JSON for every part kind.
@@ -29,7 +30,8 @@ docs/model-proxy.md            PLEC's shared model proxy: base URL, models, quot
 backend/data/listings.json     The catalogue, for offline reading.
 ```
 
-Node 20.12 or newer. No `npm install`.
+Node 20.19 or newer. Run `npm install` once: it installs the frontend's React and Vite.
+The backend and the test runner have no dependencies.
 
 ## Quickstart
 
@@ -37,6 +39,7 @@ Node 20.12 or newer. No `npm install`.
 git clone https://github.com/pedroschz/plecathon-agent-template my-agent
 cd my-agent
 cp .env.example .env
+npm install
 ```
 
 Open `.env` and paste both of your team's keys from
@@ -50,17 +53,38 @@ npm start
 ```
 
 That starts both processes: the agent (backend) on http://localhost:8787 and
-the chat page (frontend) on http://localhost:3000. Open the chat page and say
-hello. The starter greets and echoes.
+the site (frontend) on http://localhost:3000. Open the site and ask the
+Concierge anything. The starter greets and echoes.
+
+## The site
+
+`frontend/` is a React replica of the plec-it.com landing page with the agent
+built in: a Concierge hero at the top, a chat dock that stays open while you
+browse, the "Ask PLEC" pill and the "Plan my event" card. Everything on it is
+live sandbox data, read through the backend's `/api/*` routes so the key
+stays on the server:
+
+- Rows of venues and services per city, and search with city, date, guests,
+  kind and category filters (`GET /listings`).
+- A listing view with every rule (hours, minimums, peak rates, closed days,
+  curfew, alcohol, cancellation policy, blackout dates) (`GET /listings/:id`).
+- Availability as you pick a date (`GET /listings/:id/availability`).
+- An exact price with every line item, add-ons included (`POST /quotes`).
+- Booking lookup by reference, with an honest status and the payment link
+  (`GET /bookings/:ref`).
+
+The site never books, cancels or reschedules by itself. Those buttons hand
+the request to the Concierge, which has to confirm with the guest first.
+`/chat.html` is the plain chat page, sharing the same conversation.
 
 To run them separately, in two terminals:
 
 ```bash
 npm run backend     # the agent, on AGENT_PORT (8787)
-npm run frontend    # the chat page, on FRONTEND_PORT (3000), talking to AGENT_URL
+npm run frontend    # the site, on FRONTEND_PORT (3000), talking to AGENT_URL
 ```
 
-Restart only the backend when you change the agent; the chat page keeps its
+Restart only the backend when you change the agent; the page keeps its
 conversation.
 
 ```bash
@@ -81,9 +105,9 @@ cp .env.example .env
 python3 backend/python/echo_server.py
 ```
 
-Same contract, same `npm test`, and `npm run frontend` gives it the same chat
-page at http://localhost:3000
-(the runner only needs Node to run; your agent can be anything). Any other
+Same contract, same `npm test`, and the plain chat page at
+http://localhost:8787 (the runner only needs Node to run; your agent can be
+anything). The React site also needs the Node backend's `/api/*` routes. Any other
 language works the same way: implement `POST /agent/messages` and you are in.
 
 ## The contract

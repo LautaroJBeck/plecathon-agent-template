@@ -6,8 +6,8 @@
     POST {agent}/agent/messages { sessionId, text } -> { parts }
     POST {agent}/agent/reset    { sessionId }       -> { ok }
 
-  The agent URL is this page's own origin (frontend/server.js serves the page and
-  forwards /agent/* to the backend), or whatever you pass as
+  The agent URL is this page's own origin (the Vite dev server serves it at
+  /chat.html and forwards /agent/* to the backend), or whatever you pass as
   ?agent=http://localhost:9000 to call a backend directly.
   The sessionId lives in localStorage so a reload keeps the conversation and
   "Start over" mints a new one.

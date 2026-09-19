@@ -5,6 +5,8 @@ import { Icon } from './ui.jsx';
 const KEY_SESSION = 'plec.sessionId';
 const KEY_LOG = 'plec.log';
 const TURN_TIMEOUT_MS = 45_000;
+const PHOTO_TEXT = "Here's the vibe I'm going for.";
+const PHOTO_MAX_SIDE = 1024;
 
 export const SUGGESTIONS = [
   'I need a rooftop in Philadelphia for 40 people',
@@ -17,6 +19,23 @@ export const SUGGESTIONS = [
 const read = (key) => { try { return localStorage.getItem(key); } catch { return null; } };
 const write = (key, value) => { try { localStorage.setItem(key, value); } catch { /* ignore */ } };
 const readLog = () => { try { return JSON.parse(read(KEY_LOG) || '[]'); } catch { return []; } };
+// The user's own photos stay out of the saved log: they would blow the storage quota, and images are never kept.
+const isPhoto = (e) => e.role === 'user' && e.part.kind === 'image';
+
+/** Any image file -> { mediaType: 'image/jpeg', data } at most 1024px on its longest side, JPEG quality 0.8. */
+async function downscale(file) {
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(1, PHOTO_MAX_SIDE / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(bitmap.width * scale);
+  canvas.height = Math.round(bitmap.height * scale);
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#fff'; // transparent PNGs would turn black as JPEG
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  const url = canvas.toDataURL('image/jpeg', 0.8);
+  return { mediaType: 'image/jpeg', data: url.slice(url.indexOf(',') + 1), url };
+}
 
 /** The conversation with the agent: entries are { role: 'user'|'agent'|'note', part, failed?, retryText? }. */
 export function useConcierge() {
@@ -24,24 +43,40 @@ export function useConcierge() {
   const [entries, setEntries] = useState(readLog);
   const [sending, setSending] = useState(false);
   const [open, setOpen] = useState(false);
+  const [locationOn, setLocationOn] = useState(null); // null until the browser answers
   const busy = useRef(false);
+  const where = useRef(null);
+
+  // Asked once, when the chat first opens. Kept in memory only and sent with every message.
+  useEffect(() => {
+    if (!open || locationOn !== null) return;
+    if (!navigator.geolocation) return setLocationOn(false);
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => { where.current = { lat: coords.latitude, lng: coords.longitude }; setLocationOn(true); },
+      () => setLocationOn(false),
+      { timeout: 8000, maximumAge: 10 * 60 * 1000 },
+    );
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => write(KEY_SESSION, sessionId), [sessionId]);
-  useEffect(() => write(KEY_LOG, JSON.stringify(entries.slice(-200))), [entries]);
+  useEffect(() => write(KEY_LOG, JSON.stringify(entries.filter((e) => !isPhoto(e)).slice(-200))), [entries]);
 
-  async function send(raw) {
-    const text = (raw ?? '').trim();
+  /** photo, when given, is downscale()'s result; it rides along with this one message only. */
+  async function send(raw, photo) {
+    const text = (raw ?? '').trim() || (photo ? PHOTO_TEXT : '');
     setOpen(true);
     if (!text || busy.current) return;
     busy.current = true;
     setSending(true);
     const mine = { role: 'user', part: { kind: 'text', text } };
-    setEntries((all) => [...all.filter((e) => !(e.role === 'note' && e.retryText === text)), mine]);
+    const shown = photo ? [{ role: 'user', part: { kind: 'image', url: photo.url } }, mine] : [mine];
+    setEntries((all) => [...all.filter((e) => !(e.role === 'note' && e.retryText === text)), ...shown]);
     try {
+      const image = photo && { mediaType: photo.mediaType, data: photo.data };
       const res = await fetch('/agent/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId, text }),
+        body: JSON.stringify({ sessionId, text, ...(image && { image }), ...(where.current && { location: where.current }) }),
         signal: AbortSignal.timeout(TURN_TIMEOUT_MS),
       });
       const body = await res.json().catch(() => ({}));
@@ -68,11 +103,11 @@ export function useConcierge() {
     setEntries([]);
   }
 
-  return { entries, sending, open, setOpen, send, reset };
+  return { entries, sending, open, setOpen, send, reset, locationOn };
 }
 
-// Only http(s) links from the agent are rendered as links: its text can be steered by host-written data.
-const safe = (url) => (/^https?:\/\//i.test(url ?? '') ? url : undefined);
+// Only http(s) and mailto links from the agent are rendered as links: its text can be steered by host-written data.
+const safe = (url) => (/^(https?:\/\/|mailto:)/i.test(url ?? '') ? url : undefined);
 const external = (url) => ({ href: safe(url), target: '_blank', rel: 'noreferrer' });
 
 function Part({ part }) {
@@ -104,7 +139,7 @@ function Part({ part }) {
     case 'image':
       return (
         <figure className="chat-photo">
-          <img src={part.url} alt={part.caption || 'Photo from the assistant'} loading="lazy" />
+          <img src={part.url} alt={part.caption || 'Photo'} loading="lazy" />
           {part.caption && <figcaption>{part.caption}</figcaption>}
         </figure>
       );
@@ -124,8 +159,11 @@ function Avatar() {
 
 export function ConciergeDock({ concierge: c }) {
   const [draft, setDraft] = useState('');
+  const [photo, setPhoto] = useState(null);
+  const [photoError, setPhotoError] = useState('');
   const log = useRef(null);
   const input = useRef(null);
+  const picker = useRef(null);
 
   useEffect(() => { log.current?.scrollTo({ top: log.current.scrollHeight, behavior: 'smooth' }); }, [c.entries, c.sending, c.open]);
   useEffect(() => { if (c.open) input.current?.focus(); }, [c.open]);
@@ -140,13 +178,31 @@ export function ConciergeDock({ concierge: c }) {
 
   function submit(e) {
     e?.preventDefault();
-    if (!draft.trim() || c.sending) return;
-    c.send(draft);
+    if ((!draft.trim() && !photo) || c.sending) return;
+    c.send(draft, photo);
     setDraft('');
+    setPhoto(null);
   }
 
+  async function attach(file) {
+    if (!file?.type?.startsWith('image/')) return;
+    setPhotoError('');
+    try {
+      setPhoto(await downscale(file));
+    } catch {
+      setPhotoError("Couldn't open that image. Try a JPEG or PNG.");
+    }
+  }
+
+  const imageIn = (items) => [...(items ?? [])].find((f) => f.type?.startsWith('image/'));
+
   return (
-    <aside className="dock" aria-label="Chat with the PLEC assistant">
+    <aside
+      className="dock"
+      aria-label="Chat with the PLEC assistant"
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={(e) => { const f = imageIn(e.dataTransfer?.files); if (f) { e.preventDefault(); attach(f); } }}
+    >
       <header className="dock-head">
         <Avatar />
         <div className="dock-title">
@@ -184,7 +240,18 @@ export function ConciergeDock({ concierge: c }) {
         )}
       </div>
 
+      {(photo || photoError) && (
+        <div className="attached">
+          {photo && <img src={photo.url} alt="Photo to send" />}
+          {photo && <button type="button" className="attached-x" onClick={() => setPhoto(null)} aria-label="Remove photo"><Icon name="x" size={14} /></button>}
+          {photoError && <span>{photoError}</span>}
+        </div>
+      )}
       <form className="composer" onSubmit={submit}>
+        <input ref={picker} type="file" accept="image/*" hidden onChange={(e) => { attach(e.target.files?.[0]); e.target.value = ''; }} />
+        <button type="button" className="attach" onClick={() => picker.current?.click()} aria-label="Attach a photo of the vibe you want" title="Attach a photo">
+          <Icon name="image" />
+        </button>
         <textarea
           ref={input}
           rows={1}
@@ -193,10 +260,14 @@ export function ConciergeDock({ concierge: c }) {
           aria-label="Message the PLEC assistant"
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && submit(e)}
+          onPaste={(e) => { const f = imageIn(e.clipboardData?.files); if (f) { e.preventDefault(); attach(f); } }}
         />
-        <button className="send" disabled={!draft.trim() || c.sending} aria-label="Send message"><Icon name="up" /></button>
+        <button className="send" disabled={(!draft.trim() && !photo) || c.sending} aria-label="Send message"><Icon name="up" /></button>
       </form>
-      <p className="fine">AI assistant. It can make mistakes. Nothing is booked until you say yes.</p>
+      <p className="fine">
+        {c.locationOn !== null && <>{c.locationOn ? '📍 Using your location' : 'Location off'} · </>}
+        AI assistant. It can make mistakes. Nothing is booked until you say yes.
+      </p>
     </aside>
   );
 }

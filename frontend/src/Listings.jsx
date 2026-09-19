@@ -233,7 +233,7 @@ export function ListingModal({ id, onClose, onAsk }) {
                 <h3>Good to know</h3>
                 <Facts l={l} />
                 <button className="btn ghost" onClick={() => onAsk(`Tell me about ${l.name}. Is it a good fit for my event?`)}>
-                  <Icon name="chat" size={16} /> Ask the Concierge about {l.name}
+                  <Icon name="chat" size={16} /> Ask the Concierge about this place
                 </button>
               </div>
               <QuoteBox l={l} onAsk={onAsk} />
