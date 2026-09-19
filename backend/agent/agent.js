@@ -17,7 +17,8 @@ const FORCE_FINAL_AFTER_MS = 25_000;
 /** Messages sent to the model; session.state carries anything older. */
 const HISTORY_WINDOW = 24;
 const MAX_TOOL_CHARS = 6_000;
-// No temperature: kimi-k2.6 behind the proxy rejects temperature 0 with an upstream 400.
+/** kimi-k2.6 behind the proxy rejects 0 (upstream 400); 1 is its fixed thinking-mode value. */
+const TEMPERATURE = 1;
 
 const PLEC_TOOL_NAMES = new Set(plecTools.map((t) => t.function.name));
 
@@ -58,7 +59,7 @@ async function runTurn(userText, session, deps) {
     const forceFinal = round === MAX_ROUNDS - 1 || now() - startedAt > FORCE_FINAL_AFTER_MS;
     const messages = [{ role: 'system', content: systemPrompt(session) }, ...windowMessages(session.messages, HISTORY_WINDOW)];
     const roundStart = now();
-    const reply = await chatCompletion(messages, { tools, ...(forceFinal ? { toolChoice: 'none' } : {}) });
+    const reply = await chatCompletion(messages, { tools, temperature: TEMPERATURE, ...(forceFinal ? { toolChoice: 'none' } : {}) });
     console.log(`[agent] round ${round + 1}${forceFinal ? ' (forced)' : ''} ${now() - roundStart}ms ${reply.toolCalls.map((c) => `${c.name}${c.argumentsJson}`).join(' ') || 'answer'}`);
 
     if (forceFinal || reply.toolCalls.length === 0) {
