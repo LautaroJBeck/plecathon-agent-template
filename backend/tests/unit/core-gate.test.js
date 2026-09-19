@@ -130,3 +130,10 @@ test('ungated tools pass straight through', () => {
   const gate = checkGate('quote', { listingId: 'foundry' }, { session: s, userText: 'price?', prevAssistantText: '' });
   assert.deepEqual(gate, { allow: true, args: { listingId: 'foundry' } });
 });
+
+test('"yes" after the assistant named the booked listing (not the ref) allows a cancel', () => {
+  const s = sessionWithFoundry();
+  s.state.bookingInfo = { 'BK-1001': { listingName: 'The Foundry at Fishtown', date: '2026-10-10' } };
+  const gate = checkGate('cancel_booking', { ref: 'BK-1001' }, { session: s, userText: 'yes', prevAssistantText: 'This booking is for The Foundry at Fishtown on October 10. Shall I cancel it?' });
+  assert.equal(gate.allow, true);
+});

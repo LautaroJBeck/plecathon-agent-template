@@ -52,6 +52,14 @@ export function subjectOf(name, args, session) {
   return args?.subject ?? name;
 }
 
+/** Every way the user or assistant might name the subject: a booking ref also goes by its listing's name. */
+function namesOf(name, args, session) {
+  const names = [subjectOf(name, args, session)];
+  const listingName = args?.ref && session.state.bookingInfo?.[String(args.ref).toUpperCase()]?.listingName;
+  if (listingName) names.push(listingName);
+  return names;
+}
+
 const KEY_ARGS = {
   book: ['listingId', 'date', 'startTime', 'endTime', 'guestCount'],
   cancel_booking: ['ref'],
@@ -106,8 +114,9 @@ export function checkGate(name, args, { session, userText, prevAssistantText }) 
   }
 
   const subject = subjectOf(name, callArgs, session);
+  const named = namesOf(name, callArgs, session);
   const consented = isAffirmative(userText)
-    && (matches(s.pending, name, callArgs) || mentions(userText, subject) || mentions(prevAssistantText, subject));
+    && (matches(s.pending, name, callArgs) || named.some((n) => mentions(userText, n) || mentions(prevAssistantText, n)));
   if (consented) return { allow: true, args: callArgs };
 
   s.pending = { kind: name, args: callArgs, subject, at: Date.now() };

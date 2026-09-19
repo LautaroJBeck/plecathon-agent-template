@@ -31,15 +31,21 @@ export function remember(session, name, args, result) {
     if (result.guestCount) s.guestCount = result.guestCount;
   } else if (name === 'book') {
     if (args.guestName && args.guestEmail) s.guest = { name: args.guestName, email: args.guestEmail };
-    addRefs(s, [result.ref]);
+    addBookings(s, [result]);
   } else if (BOOKING_TOOLS.has(name)) {
-    addRefs(s, Array.isArray(result.bookings) ? result.bookings.map((b) => b?.ref) : [result.ref]);
+    addBookings(s, Array.isArray(result.bookings) ? result.bookings : [result]);
   }
 }
 
-function addRefs(s, refs) {
+/** Refs go to bookingRefs; bookingInfo (A-only) keeps each ref's listing name for the gate. */
+function addBookings(s, bookings) {
   s.bookingRefs ??= [];
-  for (const ref of refs) if (ref && !s.bookingRefs.includes(ref)) s.bookingRefs.push(ref);
+  s.bookingInfo ??= {};
+  for (const b of bookings) {
+    if (!b?.ref) continue;
+    if (!s.bookingRefs.includes(b.ref)) s.bookingRefs.push(b.ref);
+    if (b.listingName) s.bookingInfo[b.ref] = { listingName: b.listingName, date: b.date };
+  }
 }
 
 const EMAIL = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/;

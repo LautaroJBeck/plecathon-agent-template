@@ -93,3 +93,9 @@ test('the summary shows the pending action and the guest on file', () => {
   assert.match(summary, /Sam <sam@x\.com>/);
   assert.match(summary, /book.*The Foundry/);
 });
+
+test('booking lookups remember each ref\'s listing name', () => {
+  const s = newSession();
+  remember(s, 'get_booking', { ref: 'BK-1001' }, { ref: 'BK-1001', listingName: 'The Foundry at Fishtown', date: '2026-10-10' });
+  assert.equal(s.state.bookingInfo['BK-1001'].listingName, 'The Foundry at Fishtown');
+});
