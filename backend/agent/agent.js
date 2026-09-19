@@ -9,6 +9,7 @@ import { callTool as defaultCallTool, tools as plecTools } from './plec.js';
 import { extraTools, callExtraTool as defaultCallExtraTool } from './extras.js';
 import { toParts } from './parts.js';
 import { systemPrompt } from './prompt.js';
+import { noteUserText, remember } from './state.js';
 
 /** Model rounds per turn. Every round costs quota, so keep it small. */
 export const MAX_ROUNDS = 5;
@@ -54,6 +55,7 @@ async function runTurn(userText, session, deps) {
   const tools = [...plecTools, ...extraTools];
   const turnResults = [];
   let text = '';
+  noteUserText(session, userText);
 
   for (let round = 0; round < MAX_ROUNDS; round += 1) {
     const forceFinal = round === MAX_ROUNDS - 1 || now() - startedAt > FORCE_FINAL_AFTER_MS;
@@ -72,6 +74,7 @@ async function runTurn(userText, session, deps) {
     const results = await Promise.all(calls.map(({ call, args }) => runTool(call.name, args, { session, userText }, deps)));
     calls.forEach(({ call, args }, i) => {
       turnResults.push({ name: call.name, args, result: results[i] });
+      remember(session, call.name, args, results[i]);
       session.messages.push({ role: 'tool', tool_call_id: call.id, content: toolContent(call.name, results[i]) });
     });
   }

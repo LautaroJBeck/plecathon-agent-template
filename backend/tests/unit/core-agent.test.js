@@ -141,3 +141,23 @@ test('tool results drop search photoUrls and are capped at 6,000 characters', ()
   assert.ok(big.length <= 6_100, `got ${big.length}`);
   assert.match(big, /truncated/);
 });
+
+test('tool results and user text land in state, and the prompt restates them', async () => {
+  const session = newSession();
+  const chatCompletion = scripted(
+    withCalls(['c1', 'search_listings', { city: 'Philadelphia', guests: 60, kind: 'venue' }]),
+    final('Here are venues.'),
+    final('And photographers.'),
+  );
+  const callTool = async () => ({ results: [{ id: 'a', name: 'A', photoUrls: ['p'] }], totalMatches: 1 });
+  await respond({ sessionId: 's', text: 'Venues in Philly for 60 please, I am Sam Rivera, sam@x.com', session }, { chatCompletion, callTool });
+  assert.equal(session.state.city, 'Philadelphia');
+  assert.equal(session.state.guestCount, 60);
+  assert.deepEqual(session.state.lastResults, ['a']);
+  assert.deepEqual(session.state.guest, { name: 'Sam Rivera', email: 'sam@x.com' });
+  await respond({ sessionId: 's', text: 'And a photographer?', session }, { chatCompletion, callTool });
+  const system = chatCompletion.calls.at(-1).messages[0].content;
+  assert.match(system, /City: Philadelphia/);
+  assert.match(system, /Headcount: 60/);
+  assert.match(system, /Sam Rivera/);
+});
