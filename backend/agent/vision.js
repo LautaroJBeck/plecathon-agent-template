@@ -1,7 +1,7 @@
 /**
  * Reads the event vibe of the user's own photo with Claude (PRD B4). The SDK
  * is loaded with a dynamic import, so a missing package or a missing
- * ANTHROPIC_API_KEY only turns the photo feature off. Images are never
+ * Anthropic key only turns the photo feature off. Images are never
  * stored: the caller passes one in and drops it.
  */
 
@@ -36,16 +36,25 @@ const SHAPES = [
 let shapeIndex = 0;
 let loggedShape = -1;
 
+/** The Anthropic key for photos: ANTHROPIC_API_KEY, else LLM_API_KEY when the main model runs on Anthropic. '' if none. */
+export function visionKey(env = process.env) {
+  if (env.ANTHROPIC_API_KEY) return env.ANTHROPIC_API_KEY;
+  let host = '';
+  try { host = new URL(env.LLM_BASE_URL).hostname; } catch { /* unset or not a URL */ }
+  return host === 'anthropic.com' || host.endsWith('.anthropic.com') ? env.LLM_API_KEY || '' : '';
+}
+
 /** { mediaType, data } -> { summary, keywords } or { error }. Never throws. */
 export async function describeVibe({ mediaType, data }) {
-  if (!process.env.ANTHROPIC_API_KEY) return { error: 'vision_unavailable' };
+  const apiKey = visionKey();
+  if (!apiKey) return { error: 'vision_unavailable' };
   let Anthropic;
   try {
     ({ default: Anthropic } = await import('@anthropic-ai/sdk'));
   } catch {
     return { error: 'vision_unavailable' };
   }
-  const client = new Anthropic();
+  const client = new Anthropic({ apiKey });
   for (let i = shapeIndex; i < SHAPES.length; i++) {
     try {
       const response = await client.beta.messages.create(request(SHAPES[i], mediaType, data), { timeout: 15_000, maxRetries: 0 });

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { extraPromptSection, prepareTurn } from '../../agent/extras.js';
-import { describeVibe } from '../../agent/vision.js';
+import { describeVibe, visionKey } from '../../agent/vision.js';
 
 const photo = { mediaType: 'image/jpeg', data: 'AAAA' };
 
@@ -27,12 +27,21 @@ test('prepareTurn on a failed read asks the user to describe the vibe, never thr
   }
 });
 
-test('describeVibe without ANTHROPIC_API_KEY is unavailable, not an error', async () => {
-  const key = process.env.ANTHROPIC_API_KEY;
+test('describeVibe without an Anthropic key is unavailable, not an error', async () => {
+  const saved = { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY, LLM_API_KEY: process.env.LLM_API_KEY };
   delete process.env.ANTHROPIC_API_KEY;
+  delete process.env.LLM_API_KEY;
   try {
     assert.deepEqual(await describeVibe(photo), { error: 'vision_unavailable' });
   } finally {
-    if (key !== undefined) process.env.ANTHROPIC_API_KEY = key;
+    for (const [k, v] of Object.entries(saved)) if (v !== undefined) process.env[k] = v;
   }
+});
+
+test('visionKey prefers ANTHROPIC_API_KEY, else reuses LLM_API_KEY only when the main model is Anthropic', () => {
+  assert.equal(visionKey({ ANTHROPIC_API_KEY: 'a', LLM_API_KEY: 'b', LLM_BASE_URL: 'https://api.anthropic.com/v1' }), 'a');
+  assert.equal(visionKey({ LLM_API_KEY: 'b', LLM_BASE_URL: 'https://api.anthropic.com/v1/' }), 'b');
+  assert.equal(visionKey({ LLM_API_KEY: 'b', LLM_BASE_URL: 'https://proxy.plec.ai/v1' }), '');
+  assert.equal(visionKey({ LLM_API_KEY: 'b' }), '');
+  assert.equal(visionKey({}), '');
 });
