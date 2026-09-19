@@ -166,6 +166,7 @@ function isPart(part) {
     case 'card': return typeof part.title === 'string' && Array.isArray(part.photoUrls);
     case 'link': return typeof part.label === 'string' && typeof part.url === 'string';
     case 'image': return typeof part.url === 'string';
+    case 'confirm': return typeof part.title === 'string' && typeof part.yesText === 'string' && typeof part.noText === 'string'; // our UI only
     default: return false;
   }
 }

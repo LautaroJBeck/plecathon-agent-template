@@ -154,3 +154,53 @@ test('MAP tag adds a map link only when mapUrl is known; email draft adds a mail
     { kind: 'link', label: 'Open the email draft in your mail app', url: mailtoUrl },
   ]);
 });
+
+// Confirm part: a booking summary with Confirm / Not now buttons in our chat UI.
+const QUOTE = {
+  quoteId: 'Q-1', listingId: 'foundry-fishtown', date: '2026-10-10', startTime: '18:00', endTime: '23:00', guestCount: 40, packageIds: [], hours: 5,
+  lineItems: [{ label: 'Venue, 5 hours at $300.00/hour', amountCents: 150000 }], subtotalCents: 165000, serviceFeeCents: 16500, totalCents: 181500,
+};
+const GUEST = { name: 'Ada Lovelace', email: 'ada@example.com' };
+const confirmOf = (parts) => parts.find((p) => p.kind === 'confirm');
+
+test('a booking question after a quote, with the guest on file, ends with a confirm part', () => {
+  const session = sessionWith([FOUNDRY], { state: { guest: GUEST, lastQuote: QUOTE } });
+  const parts = toParts('It comes to $1,815.00 all in. Shall I book it?\nCARDS: foundry-fishtown', session, [{ name: 'quote', args: {}, result: QUOTE }]);
+  const c = confirmOf(parts);
+  assert.equal(parts.at(-1), c);
+  assert.equal(c.title, FOUNDRY.name);
+  assert.equal(c.listingId, 'foundry-fishtown');
+  assert.equal(c.photoUrl, FOUNDRY.photoUrls[0]);
+  assert.deepEqual([c.date, c.startTime, c.endTime, c.guestCount], ['2026-10-10', '18:00', '23:00', 40]);
+  assert.deepEqual(c.lineItems, QUOTE.lineItems);
+  assert.equal(c.serviceFeeCents, 16500);
+  assert.equal(c.totalCents, 181500);
+  assert.deepEqual(c.guest, GUEST);
+  assert.equal(c.requestToBook, false);
+  assert.equal(parts[0].text, 'It comes to $1,815.00 all in. Shall I book it?'); // the text part stays for the checks
+});
+
+test('the confirm buttons speak the gate: yes consents to this listing, no drops it', async () => {
+  const { isAffirmative, isNegativeOrChange } = await import('../../agent/gate.js');
+  const c = confirmOf(toParts('Shall I book it?', sessionWith([FOUNDRY], { state: { guest: GUEST } }), [{ name: 'quote', args: {}, result: QUOTE }]));
+  assert.ok(isAffirmative(c.yesText));
+  assert.ok(c.yesText.includes(FOUNDRY.name));
+  assert.ok(!isAffirmative(c.noText));
+  assert.ok(isNegativeOrChange(c.noText));
+});
+
+test('a held-back book shows the confirm part from the last quote', () => {
+  const session = sessionWith([BALLROOM], { state: { guest: GUEST, lastQuote: { ...QUOTE, listingId: 'old-city-ballroom' } } });
+  const held = { name: 'book', args: { listingId: 'old-city-ballroom' }, result: { error: 'needs_confirmation', message: '...' } };
+  const c = confirmOf(toParts('Here is the summary.', session, [held]));
+  assert.equal(c.title, BALLROOM.name);
+  assert.equal(c.requestToBook, true);
+});
+
+test('no confirm part without the guest, for a plain price answer, or once booked', () => {
+  const quoted = [{ name: 'quote', args: {}, result: QUOTE }];
+  assert.equal(confirmOf(toParts('Shall I book it?', sessionWith([FOUNDRY]), quoted)), undefined);
+  assert.equal(confirmOf(toParts('It comes to $1,815.00 all in.', sessionWith([FOUNDRY], { state: { guest: GUEST } }), quoted)), undefined);
+  const booked = [...quoted, { name: 'book', args: {}, result: { ref: 'BK-1001', listingId: 'foundry-fishtown', status: 'pending_payment' } }];
+  assert.equal(confirmOf(toParts('Booked! Want anything else?', sessionWith([FOUNDRY], { state: { guest: GUEST } }), booked)), undefined);
+});

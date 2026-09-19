@@ -20,7 +20,7 @@ const MAX_PHOTO_LISTINGS = 2;
 const PHOTOS_PER_LISTING = 3;
 
 /** turnResults = [{ name, args, result }] for every tool call this turn, in order.
- *  Returns Part[] with at least one text part: text, then links, then cards, then images. */
+ *  Returns Part[] with at least one text part: text, then links, then cards, then images, then a confirm part. */
 export function toParts(text, session, turnResults) {
   const state = session?.state ?? {};
   const seen = state.seen ?? {};
@@ -79,7 +79,46 @@ export function toParts(text, session, turnResults) {
 
   const cards = cardIds.map((id, i) => cardFor(seen[id], i + 1));
   const fallbackText = cards.length ? "Here's what I found." : 'Sorry, could you say that again?';
-  return [{ kind: 'text', text: clean || fallbackText }, ...links, ...cards, ...images];
+  const confirm = confirmFor(clean, session, turnResults);
+  return [{ kind: 'text', text: clean || fallbackText }, ...links, ...cards, ...images, ...(confirm ? [confirm] : [])];
+}
+
+const ASKS_TO_BOOK = /(book|reserv|confirm)/i;
+
+/** A booking summary with Confirm / Not now buttons (our chat UI only; the contract has no such part).
+ *  Shown when a quote is on the table, the guest is on file, nothing was booked this turn, and either the
+ *  gate held back a book or the text asks whether to book. Every figure comes from the quote. */
+function confirmFor(text, session, turnResults) {
+  const s = session?.state ?? {};
+  const all = turnResults ?? [];
+  if (!s.guest?.name || !s.guest?.email) return null;
+  if (all.some((r) => r?.name === 'book' && r.result && !r.result.error)) return null;
+  const held = all.some((r) => r?.name === 'book' && r.result?.error === 'needs_confirmation');
+  const q = all.findLast((r) => r?.name === 'quote' && r.result && !r.result.error)?.result ?? (held ? s.lastQuote : null);
+  if (!q?.totalCents || !(held || (text.includes('?') && ASKS_TO_BOOK.test(text)))) return null;
+  const l = s.seen?.[q.listingId];
+  if (!l?.name) return null;
+  const when = `on ${q.date} from ${q.startTime} to ${q.endTime} for ${q.guestCount} guests`;
+  return {
+    kind: 'confirm',
+    action: 'book',
+    listingId: l.id,
+    title: l.name,
+    photoUrl: l.photoUrls?.[0] ?? null,
+    subtitle: [l.category, l.neighborhood, l.city].filter(Boolean).join(' · '),
+    date: q.date,
+    startTime: q.startTime,
+    endTime: q.endTime,
+    guestCount: q.guestCount,
+    lineItems: q.lineItems ?? [],
+    serviceFeeCents: q.serviceFeeCents,
+    totalCents: q.totalCents,
+    guest: { name: s.guest.name, email: s.guest.email },
+    requestToBook: l.instantBook === false,
+    // What the buttons send: worded so the gate reads a yes for this listing, or a clear no.
+    yesText: `Yes, book ${l.name} ${when}.`,
+    noText: `No, don't book ${l.name}.`,
+  };
 }
 
 /** One card per listing. The title is exactly the listing name: the checks match cards by title. */

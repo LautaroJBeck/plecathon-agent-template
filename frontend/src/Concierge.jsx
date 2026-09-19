@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Icon } from './ui.jsx';
+import { money, prettyDate } from './api.js';
 
 // Same keys as public/chat.html, so both pages share one conversation.
 const KEY_SESSION = 'plec.sessionId';
@@ -99,6 +100,13 @@ export function useConcierge() {
     }
   }
 
+  /** A confirm part's button: remember the choice on that entry, then send the worded yes or no. */
+  function answer(entry, choice) {
+    if (busy.current || entry.answer) return;
+    setEntries((all) => all.map((e) => (e === entry ? { ...e, answer: choice } : e)));
+    send(choice === 'yes' ? entry.part.yesText : entry.part.noText);
+  }
+
   async function reset() {
     // The reset route is optional in the contract; a fresh sessionId is a fresh conversation regardless.
     fetch('/agent/reset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId }) }).catch(() => {});
@@ -106,12 +114,56 @@ export function useConcierge() {
     setEntries([]);
   }
 
-  return { entries, sending, open, setOpen, send, reset, locationOn };
+  return { entries, sending, open, setOpen, send, answer, reset, locationOn };
 }
 
 // Only http(s), mailto and our own /api/ links (the .ics download) are rendered: agent text can be steered by host-written data.
 const safe = (url) => (/^(https?:\/\/|mailto:|\/api\/)/i.test(url ?? '') ? url : undefined);
 const external = (url) => ({ href: safe(url), target: '_blank', rel: 'noreferrer' });
+
+/** "18:00" -> "6pm", "18:30" -> "6:30pm" */
+function clock(t) {
+  const [h, m] = String(t ?? '').split(':').map(Number);
+  if (Number.isNaN(h)) return t ?? '';
+  return `${h % 12 || 12}${m ? `:${String(m).padStart(2, '0')}` : ''}${h < 12 ? 'am' : 'pm'}`;
+}
+
+/** Read-only booking summary with Confirm / Not now. answer is 'yes' | 'no' once chosen; locked once the chat moved on. */
+function ConfirmCard({ part, answer, locked, onAnswer }) {
+  const done = answer || locked;
+  return (
+    <div className="confirm-card">
+      <div className="confirm-head">
+        {part.photoUrl && <img src={part.photoUrl} alt="" loading="lazy" />}
+        <div>
+          <strong>{part.title}</strong>
+          {part.subtitle && <span>{part.subtitle}</span>}
+        </div>
+      </div>
+      <p className="confirm-when">
+        {prettyDate(part.date)} · {clock(part.startTime)}–{clock(part.endTime)} · {part.guestCount} guests
+      </p>
+      <div className="lines">
+        {(part.lineItems ?? []).map((li) => <div key={li.label}><span>{li.label}</span><span>{money(li.amountCents)}</span></div>)}
+        {part.serviceFeeCents != null && <div><span>PLEC service fee</span><span>{money(part.serviceFeeCents)}</span></div>}
+        <div className="total"><span>Total</span><span>{money(part.totalCents)}</span></div>
+      </div>
+      {part.guest && <p className="confirm-guest">For {part.guest.name} · {part.guest.email}</p>}
+      {part.requestToBook && <p className="confirm-guest">The host approves this one before anything is paid.</p>}
+      {/* What the user chose, not the outcome: the agent's reply says whether the booking went through. */}
+      {answer === 'yes' ? <p className="confirm-state ok"><Icon name="check" size={14} /> You confirmed</p>
+        : answer === 'no' ? <p className="confirm-state">You chose not to book</p>
+        : (
+          <div className="confirm-actions">
+            <button type="button" className="btn brand wide" disabled={done} onClick={() => onAnswer('yes')}>
+              {part.requestToBook ? 'Confirm request' : 'Confirm booking'}
+            </button>
+            <button type="button" className="btn ghost wide" disabled={done} onClick={() => onAnswer('no')}>Not now</button>
+          </div>
+        )}
+    </div>
+  );
+}
 
 /** onOpen(listingId) opens the full listing page; cards without a listingId fall back to their map link. */
 function Part({ part, onOpen }) {
@@ -183,6 +235,16 @@ export function ConciergeDock({ concierge: c, onOpen }) {
 
   if (!c.open) return null;
 
+  // A confirm card goes stale once the user says anything after it; its own listing card in the same reply is hidden.
+  const lastUser = c.entries.findLastIndex((e) => e.role === 'user');
+  const hidden = new Set();
+  c.entries.forEach((e, i) => {
+    if (e.role !== 'agent' || e.part?.kind !== 'confirm') return;
+    for (let j = i - 1; j >= 0 && c.entries[j].role === 'agent'; j -= 1) {
+      if (c.entries[j].part?.kind === 'card' && c.entries[j].part.listingId === e.part.listingId) hidden.add(j);
+    }
+  });
+
   function submit(e) {
     e?.preventDefault();
     if ((!draft.trim() && !photo) || c.sending) return;
@@ -230,7 +292,12 @@ export function ConciergeDock({ concierge: c, onOpen }) {
           </div>
         )}
         {c.entries.map((entry, i) =>
-          entry.role === 'note' ? (
+          hidden.has(i) ? null
+          : entry.part?.kind === 'confirm' && entry.role === 'agent' ? (
+            <div key={i} className="row agent">
+              <ConfirmCard part={entry.part} answer={entry.answer} locked={c.sending || lastUser > i} onAnswer={(choice) => c.answer(entry, choice)} />
+            </div>
+          ) : entry.role === 'note' ? (
             <div key={i} className="note">
               {entry.part.text} {entry.retryText && <button onClick={() => c.send(entry.retryText)}>Retry</button>}
             </div>

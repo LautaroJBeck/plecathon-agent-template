@@ -353,3 +353,19 @@ button.chat-card { text-align: left; padding: 0; }
   .promo { display: none; }
   .ask-pill { left: auto; right: 16px; bottom: 16px; }
 }
+
+/* Booking confirmation in the chat: a small, read-only version of the listing's quote box. */
+.confirm-card { display: grid; gap: 10px; width: 92%; padding: 14px; border-radius: 18px; background: #fff; border: 1px solid var(--border); box-shadow: var(--shadow); }
+.confirm-head { display: flex; align-items: center; gap: 12px; }
+.confirm-head img { width: 56px; height: 56px; flex: none; object-fit: cover; border-radius: 12px; }
+.confirm-head div { display: grid; gap: 2px; min-width: 0; }
+.confirm-head strong { font-size: 15px; }
+.confirm-head span { font-size: 12.5px; color: var(--muted); }
+.confirm-when { margin: 0; font-size: 13.5px; font-weight: 600; }
+.confirm-card .lines { padding: 10px 0 0; font-size: 13px; }
+.confirm-card .lines .total { font-size: 15px; }
+.confirm-guest { margin: 0; font-size: 12.5px; color: var(--muted); }
+.confirm-actions { display: grid; gap: 8px; }
+.confirm-actions .btn { height: 42px; }
+.confirm-state { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 13.5px; font-weight: 600; color: var(--muted); }
+.confirm-state.ok { color: hsl(145 55% 32%); }
