@@ -5,6 +5,10 @@ that replaces it. Everything below is what the hidden scenarios judge, so read
 it as a checklist as much as a guide. Code sketches are Node, but the
 structure is the same in any language.
 
+`chatCompletion` calls whatever OpenAI-compatible endpoint `.env` points at.
+Your team has a key for PLEC's shared model proxy on the dashboard, and
+`.env.example` is already set up for it: [model-proxy.md](model-proxy.md).
+
 ## The turn loop
 
 A turn is: take the user's text, let the model decide whether it needs a tool,

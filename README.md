@@ -24,6 +24,7 @@ docs/contract.md       The agent HTTP contract, with JSON for every part kind.
 docs/sandbox.md        Every sandbox endpoint, the pricing formula, the availability rules, the errors.
 docs/harness.md        How to structure the agent: loop, tools, grounding, confirmation, memory, parts.
 docs/checks.md         What the tests check, the four public scenarios, the hidden suite's themes.
+docs/model-proxy.md    PLEC's shared model proxy: base URL, models, quotas, errors.
 data/listings.json     The catalogue, for offline reading.
 ```
 
@@ -37,9 +38,11 @@ cd my-agent
 cp .env.example .env
 ```
 
-Open `.env` and paste your team's sandbox key from
-https://plec.ai/hack/dashboard as `PLEC_SANDBOX_KEY`. Add a model key as
-`LLM_API_KEY` when you are ready to call one.
+Open `.env` and paste both of your team's keys from
+https://plec.ai/hack/dashboard: the sandbox key (it starts with `hk_`) as
+`PLEC_SANDBOX_KEY`, and the model key (it starts with `plk_`) as
+`LLM_API_KEY`. The model key runs against PLEC's shared proxy, which
+`.env.example` already points at.
 
 ```bash
 npm start
@@ -93,6 +96,34 @@ cancel, reschedule. 92 listings across Philadelphia, New York and Washington, de
 booking state is per team. `agent/plec.js` wraps all of it. Everything,
 including the pricing formula and the error codes:
 [docs/sandbox.md](docs/sandbox.md).
+
+## Model access
+
+```
+https://api.plec.ai/hackathon/llm/v1      Authorization: Bearer plk_...
+```
+
+PLEC lends its own Moonshot (Kimi) quota through an OpenAI-compatible proxy,
+so nobody has to buy a model key at the door. Mint your team's key on
+https://plec.ai/hack/dashboard. It is shown exactly once, so copy it then.
+Point `.env` at it and nothing in `agent/llm.js` changes:
+
+```bash
+LLM_BASE_URL=https://api.plec.ai/hackathon/llm/v1
+LLM_API_KEY=plk_your_key_here
+LLM_MODEL=kimi-k2.6
+```
+
+It is shared and it is capped. Every team draws on one account, so each team
+gets a budget of requests and of tokens inside a 5 minute window that resets
+on the clock. The dashboard shows your live limits and how much of the window
+you have spent; read them there, because organizers can change the numbers
+during the event. The key keeps working through judging and stops when
+results are announced, so keep your agent running until then.
+
+Your own provider key still works, and is the better choice if you expect to
+run hot. Models, quotas, errors and curl examples:
+[docs/model-proxy.md](docs/model-proxy.md).
 
 ## How you will be judged
 
@@ -167,11 +198,14 @@ and keep editing.
 ## Rules
 
 - Any language, framework or model. Keep the contract.
-- Bring your own model key. Any OpenAI-compatible chat completions endpoint
-  works with `agent/llm.js`: OpenAI, Anthropic, Groq, DeepSeek, Moonshot,
-  Ollama on your laptop.
+- A model key comes with your team: PLEC's shared proxy, minted on the
+  dashboard. Bring your own instead if you prefer. Any OpenAI-compatible chat
+  completions endpoint works with `agent/llm.js`: OpenAI, Anthropic, Groq,
+  DeepSeek, Moonshot, Ollama on your laptop.
 - Teams of one or two.
-- The sandbox is shared infrastructure: 240 requests a minute per team.
+- The sandbox is shared infrastructure: 240 requests a minute per team. So is
+  the model proxy: capped per team in a 5 minute window, and dead once
+  results are announced.
 
 ## Schedule
 
