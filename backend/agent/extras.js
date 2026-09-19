@@ -11,6 +11,7 @@ import { readFileSync } from 'node:fs';
 import { registerListings } from './shared.js';
 import { describeVibe } from './vision.js';
 import { haversineMiles, pointOf, resolveOrigin } from './geo.js';
+import { recommendFromHistory } from './recommend.js';
 
 const CATALOGUE = JSON.parse(readFileSync(new URL('../data/listings.json', import.meta.url), 'utf8'));
 const BY_ID = new Map(CATALOGUE.map((l) => [l.id, l]));
@@ -54,6 +55,14 @@ export const extraTools = [
       guests: GUESTS,
       limit: LIMIT,
     }),
+  fn('recommend_from_history',
+    'Suggest listings like the ones this guest booked before ("something like last time", "what would I like?"). Uses the guest email on file unless you pass one. Each hit has a because line to relay.',
+    {
+      guestEmail: { type: 'string', description: 'The email they booked with, if not on file' },
+      city: CITY,
+      guests: GUESTS,
+      limit: LIMIT,
+    }),
 ];
 
 export const gatedExtraTools = []; // names of extra tools that need a user "yes" (A's gate enforces it)
@@ -67,6 +76,7 @@ export async function callExtraTool(name, args, ctx) {
       case 'search_by_vibe': return searchByVibe(args ?? {}, session);
       case 'find_similar_listings': return findSimilarListings(args ?? {}, session);
       case 'nearby_listings': return nearbyListings(args ?? {}, session);
+      case 'recommend_from_history': return await recommendFromHistory(args ?? {}, session);
       default: return { error: 'unknown_tool', message: `No tool named ${name}.` };
     }
   } catch (err) {
@@ -77,7 +87,7 @@ export async function callExtraTool(name, args, ctx) {
 
 const TAG_PROTOCOL = `Showing listings: to show listings, end your reply with a line "CARDS: id1, id2" using ids from tool results only (at most 6, best first). Cards are numbered in that order and carry the name, category, capacity and price, so keep your text short and don't repeat those details. When the user refers to a number ("I like 1 and 3"), it is the position in your last CARDS line. For photos of a listing, add a line "PHOTOS: id". For a map, fetch the listing with get_listing and add "MAP: id". Never write image URLs or markdown images yourself.`;
 
-const EXTRA_TOOLS_GUIDE = `Vibe: when the user describes a look, mood or style, call search_by_vibe. When they pick listings by number or name, call find_similar_listings with those ids; city and headcount are in memory, so don't ask again. For "near me" or "near <place>", call nearby_listings; if it returns location_unknown, ask which neighborhood. These tools never give totals: prices come from quote.`;
+const EXTRA_TOOLS_GUIDE = `Vibe: when the user describes a look, mood or style, call search_by_vibe. When they pick listings by number or name, call find_similar_listings with those ids; city and headcount are in memory, so don't ask again. For "near me" or "near <place>", call nearby_listings; if it returns location_unknown, ask which neighborhood. For recommendations, "something like last time" or what they might like, call recommend_from_history. These tools never give totals: prices come from quote.`;
 
 /** Extra system-prompt text (tag protocol, extra scope, photo/location context). May be ''. */
 export function extraPromptSection(session) {
