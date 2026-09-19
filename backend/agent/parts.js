@@ -6,11 +6,13 @@
  */
 
 import { formatCents } from './shared.js';
+import { calendarLinks } from './calendar.js';
 
 const TAG_LINE = /^[\s*_`]*(CARDS|PHOTOS|MAP)[\s*_`]*:(.*)$/gim;
 const MD_IMAGE = /!\[[^\]]*\]\([^)]*\)/g;
 const ID = /[a-z0-9]+(?:-[a-z0-9]+)*/gi;
 const PAY_TOOLS = new Set(['book', 'resend_payment_link', 'reschedule_booking', 'get_booking']);
+const CALENDAR_TOOLS = new Set(['book', 'reschedule_booking', 'get_booking']);
 const FALLBACK_TOOLS = new Set(['search_listings', 'search_by_vibe', 'find_similar_listings', 'nearby_listings', 'recommend_from_history', 'market_insights']);
 const WANTS_PHOTOS = /photo|picture|pic|image|show me what .* looks|foto|imagen/i;
 const MAX_CARDS = 6;
@@ -53,6 +55,11 @@ export function toParts(text, session, turnResults) {
     if (!clean.includes(url)) clean += `\n\nPayment link for ${ref}: ${url}`;
     links.push({ kind: 'link', label: `Pay ${formatCents(cents)} for ${ref}`, url });
   }
+
+  // Calendar links (B10) from the last booking result per ref; calendarLinks skips cancelled ones.
+  const bookings = new Map();
+  for (const { name, result } of results) if (CALENDAR_TOOLS.has(name) && result.ref) bookings.set(result.ref, result);
+  for (const booking of bookings.values()) links.push(...calendarLinks(booking, seen[booking.listingId]));
 
   for (const id of new Set(tags.MAP)) {
     const l = seen[id];

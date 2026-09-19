@@ -18,6 +18,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { respond } from './agent.js';
 import { prepareTurn } from './extras.js';
+import { isCalendarable, toIcs } from './calendar.js';
 import { plec, PlecError } from './plec.js';
 import { getSession, resetSession } from './session.js';
 
@@ -117,11 +118,13 @@ const catalogueCache = new Map();
  *   GET  /api/listings/:id/availability?date=
  *   POST /api/quotes            { listingId, date, startTime, endTime, guestCount, packageIds? }
  *   GET  /api/bookings/:ref
+ *   GET  /api/bookings/:ref/calendar.ics   the booking as an event file (PRD B, B10)
  */
 async function handleApi(req, res, url) {
   const path = url.pathname.slice('/api'.length);
   const id = path.match(/^\/listings\/([a-z0-9-]+)(\/availability)?$/);
   const ref = path.match(/^\/bookings\/(BK-\d+)$/i);
+  const ics = path.match(/^\/bookings\/(BK-\d+)\/calendar\.ics$/i);
   try {
     if (req.method === 'GET' && path === '/listings') {
       const filters = Object.fromEntries(SEARCH_FILTERS.filter((k) => url.searchParams.get(k)).map((k) => [k, url.searchParams.get(k)]));
@@ -135,11 +138,19 @@ async function handleApi(req, res, url) {
       return json(res, 200, await plec.quote(Object.fromEntries(QUOTE_FIELDS.filter((k) => k in body).map((k) => [k, body[k]]))));
     }
     if (req.method === 'GET' && ref) return json(res, 200, await plec.getBooking(ref[1]));
+    if (req.method === 'GET' && ics) return await sendIcs(res, await plec.getBooking(ics[1]));
   } catch (err) {
     if (err instanceof PlecError) return json(res, err.status || 502, { error: err.error, message: err.message });
     throw err;
   }
   return json(res, 404, { error: 'not_found', message: `No route ${req.method} ${url.pathname}` });
+}
+
+async function sendIcs(res, booking) {
+  if (!isCalendarable(booking)) return json(res, 409, { error: booking?.status === 'cancelled' ? 'cancelled' : 'not_calendarable', message: `Booking ${booking?.ref} has no event to add.` });
+  const listing = await cached(`listing/${booking.listingId}`, () => plec.getListing(booking.listingId)).catch(() => null);
+  res.writeHead(200, { 'Content-Type': 'text/calendar; charset=utf-8', 'Content-Disposition': `attachment; filename="${booking.ref}.ics"` });
+  res.end(toIcs(booking, listing));
 }
 
 async function cached(key, load) {

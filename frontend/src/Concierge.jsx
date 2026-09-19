@@ -106,8 +106,8 @@ export function useConcierge() {
   return { entries, sending, open, setOpen, send, reset, locationOn };
 }
 
-// Only http(s) and mailto links from the agent are rendered as links: its text can be steered by host-written data.
-const safe = (url) => (/^(https?:\/\/|mailto:)/i.test(url ?? '') ? url : undefined);
+// Only http(s), mailto and our own /api/ links (the .ics download) are rendered: agent text can be steered by host-written data.
+const safe = (url) => (/^(https?:\/\/|mailto:|\/api\/)/i.test(url ?? '') ? url : undefined);
 const external = (url) => ({ href: safe(url), target: '_blank', rel: 'noreferrer' });
 
 function Part({ part }) {
