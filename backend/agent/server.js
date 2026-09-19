@@ -6,7 +6,7 @@
  *   GET  /health           { ok: true }
  *   /api/*                 read-only sandbox routes for the site (see handleApi)
  *
- * API only: the chat page is its own process (frontend/server.js). CORS is
+ * The site is its own process (frontend/, Vite). CORS is
  * wide open so the page can also be served from anywhere (a file, a tunnel,
  * another port) and still talk to this server. Every error is JSON
  * with { error, message } so the runner and the chat page can print it.
